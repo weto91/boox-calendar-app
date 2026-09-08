@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.BooxCal" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/white</item>
+        <!-- Barra de estado negra con iconos claros. Con fondo blanco e iconos
+             oscuros el Boox la dejaba en blanco: si el firmware ignora el
+             indicador de iconos oscuros y los pinta claros, sobre blanco no
+             se ven; sobre negro sí, lo honre o no. -->
+        <item name="android:statusBarColor">@android:color/black</item>
+        <item name="android:navigationBarColor">@android:color/white</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <!-- Nada de pantalla completa: en un Boox la franja superior lleva
+             los controles de refresco del sistema y hay que dejarlos libres. -->
+        <item name="android:windowFullscreen">false</item>
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowTranslucentNavigation">false</item>
+        <!-- E-ink: sin animaciones de ventana. -->
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+</resources>

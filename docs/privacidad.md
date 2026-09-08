@@ -1,85 +1,85 @@
-# Política de privacidad de Boox Calendar
+# Boox Calendar privacy policy
 
-*Última actualización: 8 de septiembre de 2026*
+*Last updated: 8 September 2026*
 
-Boox Calendar es una aplicación para tabletas de tinta electrónica Onyx Boox
-que reúne calendario, recordatorios y notas manuscritas, y los sincroniza con
-la cuenta de Google del usuario. La desarrolla y publica Álvaro Rubio Adán
-(«el desarrollador») como proyecto personal, con el código abierto en
+Boox Calendar is an application for Onyx Boox e-ink tablets that brings
+together calendar, reminders and handwritten notes and synchronises them with
+the user's Google account. It is developed and published by Álvaro Rubio Adán
+("the developer") as a personal project, with its source code open at
 <https://github.com/weto91/boox-calendar-app>.
 
-## Qué datos usa la aplicación
+## What data the application uses
 
-Con el permiso que tú das al conectar tu cuenta de Google, la aplicación lee y
-escribe:
+With the permission you grant when connecting your Google account, the
+application reads and writes:
 
-- **Google Calendar**: tus calendarios y sus eventos (título, fechas, lugar,
-  descripción, avisos, color).
-- **Google Tasks**: tus listas de tareas y sus tareas (título, notas, fecha de
-  vencimiento, estado).
-- **Google Drive, solo los archivos que la propia aplicación crea**: una
-  carpeta llamada «Calendario Boox» en tu unidad y los PDF de tus notas que ella
-  guarda ahí. La aplicación no puede ver el resto de tu Drive. Un PDF de otro
-  origen solo entra si tú lo eliges con el botón «Importar», y entonces se copia
-  a esa carpeta.
-- **Tu dirección de correo**, para mostrarte qué cuenta está conectada.
+- **Google Calendar**: your calendars and their events (title, dates, location,
+  description, alerts, colour).
+- **Google Tasks**: your task lists and their tasks (title, notes, due date,
+  status).
+- **Google Drive, only the files the application itself creates**: a folder
+  named "Calendario Boox" in your drive and the PDF files of your notes it
+  stores there. The application cannot see the rest of your Drive. A PDF from
+  another source only enters if you choose it with the "Import" button, and it
+  is then copied to that folder.
+- **Your e-mail address**, to show you which account is connected.
 
-Además, en el dispositivo, la aplicación guarda lo que escribes en ella: notas
-manuscritas, su transcripción a texto y los ajustes.
+In addition, on the device, the application stores what you write in it:
+handwritten notes, their transcription to text and the settings.
 
-## Para qué se usan
+## What they are used for
 
-Exclusivamente para lo que hace la aplicación: mostrarte tu calendario, tus
-recordatorios y tus notas, dejarte crearlos y editarlos, y mantenerlos
-sincronizados entre la tableta y tu cuenta de Google. El reconocimiento de
-escritura a mano se hace en el propio dispositivo, sin enviar los trazos a
-ningún servidor.
+Exclusively for what the application does: showing you your calendar, your
+reminders and your notes, letting you create and edit them, and keeping them
+synchronised between the tablet and your Google account. Handwriting
+recognition runs on the device itself, without sending the strokes to any
+server.
 
-## Dónde están los datos
+## Where the data lives
 
-Todos los datos viven en dos sitios: en tu dispositivo (en el almacenamiento
-privado de la aplicación, que otras aplicaciones no pueden leer) y en tu cuenta
-de Google. **No hay ningún servidor del desarrollador.** La aplicación no envía
-nada a nadie que no sea Google, en tu nombre y con tu permiso. No hay
-analítica, ni publicidad, ni registro de uso, ni identificadores de seguimiento.
+All data lives in two places: on your device (in the application's private
+storage, which other applications cannot read) and in your Google account.
+**There is no developer server.** The application sends nothing to anyone but
+Google, on your behalf and with your permission. There is no analytics, no
+advertising, no usage logging and no tracking identifiers.
 
-La comunicación con Google va cifrada (HTTPS). El token de acceso a tu cuenta se
-guarda en el almacenamiento privado de la aplicación en el dispositivo.
+Communication with Google is encrypted (HTTPS). The access token for your
+account is kept in the application's private storage on the device.
 
-## Con quién se comparten
+## Who it is shared with
 
-Con nadie. El desarrollador no tiene acceso a tus datos ni a tu cuenta.
+Nobody. The developer has no access to your data or your account.
 
-## Cómo revocar el acceso y borrar los datos
+## How to revoke access and delete the data
 
-- En la aplicación: Ajustes → **Desconectar**. Se borra el token y los datos de
-  Google descargados; las notas manuscritas se quedan en el dispositivo hasta
-  que desinstales la aplicación.
-- En tu cuenta de Google: <https://myaccount.google.com/permissions> →
-  Boox Calendar → **Quitar acceso**.
-- Desinstalar la aplicación borra todo lo que tenía en el dispositivo. Lo que
-  hay en tu cuenta de Google (eventos, tareas, la carpeta «Calendario Boox» en
-  Drive) sigue siendo tuyo y lo gestionas desde Google.
+- In the application: Settings → **Disconnect**. The token and the downloaded
+  Google data are deleted; handwritten notes stay on the device until you
+  uninstall the application.
+- In your Google account: <https://myaccount.google.com/permissions> →
+  Boox Calendar → **Remove access**.
+- Uninstalling the application deletes everything it had on the device. What
+  is in your Google account (events, tasks, the "Calendario Boox" folder in
+  Drive) remains yours and you manage it from Google.
 
-## Uso de los datos de Google
+## Use of Google user data
 
-El uso que Boox Calendar hace de la información recibida de las API de Google
-se ajusta a la
-[Política de datos de usuario de los servicios API de Google](https://developers.google.com/terms/api-services-user-data-policy),
-incluidos los requisitos de uso limitado.
+Boox Calendar's use and transfer of information received from Google APIs
+adheres to the
+[Google API Services User Data Policy](https://developers.google.com/terms/api-services-user-data-policy),
+including the Limited Use requirements.
 
-## Condiciones de uso
+## Terms of use
 
-La aplicación se ofrece gratis y tal cual, sin garantía, bajo la
-[licencia MIT](https://github.com/weto91/boox-calendar-app/blob/main/LICENSE). Puedes dejar de usarla en cualquier momento
-desinstalándola.
+The application is offered free of charge and as is, without warranty, under
+the [MIT licence](https://github.com/weto91/boox-calendar-app/blob/main/LICENSE).
+You can stop using it at any time by uninstalling it.
 
-## Cambios en esta política
+## Changes to this policy
 
-Si cambia, se actualizará esta página y la fecha de arriba. Los cambios que
-afecten a qué datos se usan se anunciarán además en las notas de la versión.
+If it changes, this page and the date above will be updated. Changes that
+affect which data is used will also be announced in the release notes.
 
-## Contacto
+## Contact
 
 Álvaro Rubio Adán · <alruad@gmail.com> ·
 <https://github.com/weto91/boox-calendar-app/issues>

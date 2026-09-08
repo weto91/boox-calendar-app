@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Fondo del icono adaptativo: el mismo azul claro que el cuerpo de la hoja. -->
+    <color name="ic_launcher_background">#EEF4FC</color>
+</resources>

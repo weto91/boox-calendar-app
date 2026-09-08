@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Boox Calendar</string>
+    <string name="widget_today_label">Calendario · Hoy</string>
+    <string name="widget_today_desc">Los eventos y recordatorios de hoy</string>
+    <string name="widget_week_label">Calendario · Semana</string>
+    <string name="widget_week_desc">La semana en curso, día a día</string>
+    <string name="widget_agenda_label">Calendario · Agenda</string>
+    <string name="widget_agenda_desc">Hoy en detalle y el resto de la semana</string>
+    <string name="widget_notes_label">Calendario · Notas de hoy</string>
+    <string name="widget_notes_desc">Las notas manuscritas de hoy y una hoja nueva</string>
+    <string name="widget_search_label">Calendario · Buscar</string>
+    <string name="widget_search_desc">Buscar en notas, eventos y recordatorios</string>
+</resources>

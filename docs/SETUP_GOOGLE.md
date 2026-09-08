@@ -1,167 +1,151 @@
-# Credenciales de Google
+# Google credentials
 
-La app usa **OAuth 2.0 con PKCE a través de AppAuth**, no Google Sign-In.
+The app uses **OAuth 2.0 with PKCE through AppAuth**, not Google Sign-In.
 
-La razón es el dispositivo: los Boox no siempre traen Google Play Services, y
-cuando lo traen suele ser una instalación parcial en la que `GoogleSignIn` falla
-de formas difíciles de diagnosticar. AppAuth solo necesita un navegador, y el
-mismo código servirá el día que entre CalDAV o Microsoft.
+The reason is the device: Boox tablets do not always ship Google Play
+Services, and when they do it is often a partial install where `GoogleSignIn`
+fails in ways that are hard to diagnose. AppAuth only needs a browser, and the
+same code will serve the day CalDAV or Microsoft come in.
 
-## 1. Proyecto en Google Cloud
+## 1. Google Cloud project
 
-1. Entra en <https://console.cloud.google.com/> y crea un proyecto.
-2. **APIs y servicios → Biblioteca**, y habilita las tres:
+1. Go to <https://console.cloud.google.com/> and create a project.
+2. **APIs & Services → Library**, enable the three:
    - Google Calendar API
    - Google Tasks API
-   - Google Drive API (para las notas manuscritas como PDF)
+   - Google Drive API (handwritten notes as PDF)
 
-## 2. Pantalla de consentimiento
+## 2. Consent screen (Google Auth Platform)
 
-**APIs y servicios → Pantalla de consentimiento de OAuth**:
-
-- Tipo de usuario: **Externo**.
-- Rellena nombre de la app y correo de contacto.
-- Ámbitos: añade
+- **Branding**: app name "Boox Calendar", support e-mail, logo
+  (`docs/logo.png`), home page
+  `https://wetoteca.duckdns.org/booxcalendar/`, privacy policy and terms
+  `https://wetoteca.duckdns.org/booxcalendar/privacidad.html`, authorised
+  domain `wetoteca.duckdns.org`. The domain must be verified in Google Search
+  Console as a **Domain property** (DNS TXT record); a URL-prefix property is
+  not enough, and shared domains such as `github.io` cannot be verified that
+  way.
+- **Data access** (scopes):
   - `https://www.googleapis.com/auth/calendar`
   - `https://www.googleapis.com/auth/tasks`
-  - `https://www.googleapis.com/auth/drive.file` (solo lo que crea la app: su
-    carpeta «Calendario Boox» y sus PDF. Un PDF de otra app entra con
-    «Importar» desde el cuaderno, que lo copia a esa carpeta. Es el ámbito
-    que Google acepta sin auditoría de seguridad)
+  - `https://www.googleapis.com/auth/drive.file` (only what the app creates:
+    its "Calendario Boox" folder and its PDFs. A PDF from another app enters
+    through **Import** in the notebook, which copies it to that folder. It is
+    the scope Google accepts without a security assessment.)
+- **Audience**: *In production*. Verification for the sensitive scopes
+  (Calendar, Tasks) is requested from the Verification Centre with a
+  justification for each scope and an unlisted demo video showing the consent
+  screen and each scope in use. While the app is unverified it works, but users
+  see the "Google hasn't verified this app" screen and there is a cap of 100
+  users.
 
-> Si la cuenta ya estaba conectada antes de añadir Drive, hay que
-> **desconectar y volver a conectar** desde Ajustes para que Google pida el
-> permiso nuevo. Ajustes lo avisa.
-- Usuarios de prueba: **añade tu propia cuenta de Google** y la de cada persona
-  de la familia que vaya a conectar la app (en la consola nueva está en
-  *Google Auth Platform → Público → Usuarios de prueba → Añadir usuarios*).
+> In *Testing* status only the listed test users can sign in and the refresh
+> token expires after **7 days**. Production removes both limits.
 
-Déjala en modo *Prueba*. No hace falta publicarla ni pasar verificación: la app
-no se distribuye por Play Store.
+> If Google answers **"Error 403: access_denied"** while in testing, the
+> account is not in the test-user list.
 
-> Si al entrar Google dice **«no ha completado el proceso de verificación…
-> Error 403: access_denied»**, es que la cuenta con la que entras no está en esa
-> lista de usuarios de prueba. Se añade y se vuelve a intentar; no hay que
-> recompilar nada.
+## 3. OAuth client
 
-> En modo *Prueba*, el refresh token caduca a los **7 días**. Es el
-> comportamiento normal de Google y significa volver a conectar la cuenta una vez
-> por semana. Si molesta, hay que publicar la aplicación (el estado *En
-> producción* con ámbitos sensibles pide verificación de Google; para uso propio
-> se puede publicar y aceptar la pantalla de "app no verificada").
+**Google Auth Platform → Clients → Create client**:
 
-## 3. Cliente de OAuth
+- Application type: **Android**
+- Package name: `com.weto.booxcal`
+- SHA-1 fingerprint of the signing certificate.
 
-**APIs y servicios → Credenciales → Crear credenciales → ID de cliente de OAuth**:
-
-- Tipo de aplicación: **Android**
-- Nombre del paquete: `com.weto.booxcal`
-- Huella SHA-1 del certificado de firma.
-
-Para la clave de depuración:
+For the debug key:
 
 ```bash
 keytool -list -v -keystore ~/.android/debug.keystore \
         -alias androiddebugkey -storepass android -keypass android
 ```
 
-Si más adelante firmas una release con otro keystore, crea un segundo ID de
-cliente con su SHA-1.
+The release build is signed with another key, so it needs its own client with
+that key's SHA-1 (see `RELEASE.md`). An Android client holds a single
+fingerprint.
 
-**Imprescindible, y no viene marcado por defecto:** en el mismo cliente
-Android, despliega **Configuración avanzada** y activa **«Habilitar esquema de
-URI personalizado»**. Sin esto Google responde `Error 400: invalid_request` al
-volver a la app, porque la vuelta es por `com.googleusercontent.apps.…:/`.
+**Essential, and off by default:** open the client, expand **Advanced
+settings** and enable **"Enable custom URI scheme"**. Without it Google answers
+`Error 400: invalid_request` when returning to the app, because the return
+goes through `com.googleusercontent.apps.…:/`.
 
-Comprueba también que el tipo del cliente es **Android**, no «Aplicación
-web»: un cliente web no admite esquemas propios y da el mismo error.
+Also check that the client type is **Android**, not "Web application": a web
+client does not accept custom schemes and gives the same error.
 
-**Y un paso que no está a la vista:** una vez creado el cliente, ábrelo, despliega
-**Configuración avanzada** y activa **«Habilitar esquema de URI personalizado»**.
-Guarda. Sin eso, al conectar desde la tablet Google responde
-*«Error 400: invalid_request»*: la app vuelve por `com.googleusercontent.apps.…:/`
-y Google solo acepta esa vuelta si el interruptor está activado.
+## 4. Put it in the project
 
-## 4. Meterlo en el proyecto
-
-Copia el client ID a `local.properties`, en la raíz del repositorio (ese fichero
-está en `.gitignore` y no debe subirse):
+Copy the client ID to `local.properties` at the repository root (the file is in
+`.gitignore` and must not be committed):
 
 ```properties
-sdk.dir=/ruta/a/tu/Android/sdk
+sdk.dir=/path/to/your/Android/sdk
 GOOGLE_OAUTH_CLIENT_ID=1234567890-abcdefghijk.apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_ID_RELEASE=<release client id>.apps.googleusercontent.com
 ```
 
-Alternativamente, exporta `GOOGLE_OAUTH_CLIENT_ID` como variable de entorno
-antes de compilar.
+Alternatively, export the same names as environment variables before building.
 
-`app/build.gradle.kts` deriva de ahí dos cosas:
+`app/build.gradle.kts` derives two things from them:
 
-- `BuildConfig.OAUTH_CLIENT_ID`
-- El esquema de redirección, que para clientes Android Google exige que sea el
-  client ID invertido:
+- `BuildConfig.OAUTH_CLIENT_ID` (per build type).
+- The redirect scheme, which for Android clients Google requires to be the
+  reversed client ID:
   `1234-abc.apps.googleusercontent.com` → `com.googleusercontent.apps.1234-abc`
 
-Ese esquema se inyecta como `manifestPlaceholders["appAuthRedirectScheme"]`, que
-es lo que consume el `RedirectUriReceiverActivity` que AppAuth declara en su
-propio manifest. No hay que declarar nada a mano.
+That scheme is injected as `manifestPlaceholders["appAuthRedirectScheme"]`,
+consumed by the `RedirectUriReceiverActivity` AppAuth declares in its own
+manifest. Nothing has to be declared by hand.
 
-La URI de redirección completa que usa la app es:
+The full redirect URI the app uses is:
 
 ```
-com.googleusercontent.apps.<tu-client-id>:/oauth2redirect
+com.googleusercontent.apps.<your-client-id>:/oauth2redirect
 ```
 
-## 5. Comprobar
+## 5. Check
 
-Compila, instala, abre **Ajustes → Conectar con Google**. Se abrirá el navegador
-del dispositivo. Al volver deberías ver tu correo, y tras la primera
-sincronización aparecerán tus calendarios y listas de tareas en Ajustes.
+Build, install, open **Settings → Connect my Google account**. The device's
+browser opens. On return you should see your e-mail, and after the first sync
+your calendars and task lists appear in Settings.
 
-Si la pantalla dice *"Falta el client ID de OAuth"*, `local.properties` no se
-leyó: comprueba que está en la raíz del repositorio, no dentro de `app/`.
+If the screen says *"OAuth client ID missing"*, `local.properties` was not
+read: check it is at the repository root, not inside `app/`.
 
-## Sobre los tokens
+## About tokens
 
-- `AuthState` de AppAuth se guarda serializado en las SharedPreferences privadas
-  `booxcal_auth`, excluidas de la copia de seguridad de Android
-  (`res/xml/backup_rules.xml` y `data_extraction_rules.xml`).
-- La petición de autorización lleva `access_type=offline` y `prompt=consent`.
-  Sin las dos, Google no devuelve refresh token y la sincronización muere en una
-  hora.
-- Un 401 invalida el token de acceso y reintenta **una** vez, por si el token
-  seguía dentro de su ventana pero había sido revocado desde la cuenta.
+- AppAuth's `AuthState` is stored serialised in the private SharedPreferences
+  `booxcal_auth`, excluded from Android backup (`res/xml/backup_rules.xml` and
+  `data_extraction_rules.xml`).
+- The authorisation request carries `access_type=offline` and
+  `prompt=consent`. Without both, Google returns no refresh token and sync
+  dies within the hour.
+- A 401 invalidates the access token and retries **once**, in case the token
+  was still within its window but had been revoked from the account.
 
-## 4. Notas en Google Drive
+## 6. Notes in Google Drive
 
-En **Ajustes → Notas en Google Drive → Elegir…** se navega por «Mi unidad» y
-se elige la carpeta. A partir de ahí:
+**Settings → Notes in Google Drive → Enable** creates (or reuses) the folder
+"Calendario Boox" in "My Drive". With `drive.file` the app cannot list the
+user's folders, so there is nothing to choose; the folder can be renamed or
+moved in Drive afterwards, the app tracks it by id. From then on:
 
-- Cada nota del cuaderno sube como **PDF vectorial editable** a la carpeta
-  espejo de la suya: `<carpeta>/NOTAS DEL DÍA/2026-01-25/Nota ….pdf`. El PDF
-  lleva el cuaderno embebido, así que al volver se recupera exacto.
-- Los PDF que otra app deje en esa carpeta (o en sus subcarpetas) entran como
-  notas con la etiqueta «importado», que no se quita. Son de **solo lectura**:
-  no se escriben, ni se mueven, ni se renombran, ni se borran desde la app
-  (la app que creó el PDF no se enteraría de los cambios). Sí se les pueden
-  poner más etiquetas, que se quedan en la app, y su texto se reconoce para
-  poder buscarlas. Las carpetas que contienen alguna nota importada tampoco
-  se renombran, mueven ni borran desde aquí: se cambian en Drive. Las notas
-  de esta app sí pueden ir dentro de esas carpetas, con todo lo demás.
-- Cambiar una nota aquí sustituye el contenido de su PDF; cambiarlo en Drive
-  vuelve a bajarlo. Si cambian los dos, se queda el más reciente.
-- Mover una nota de carpeta aquí mueve el PDF en Drive, y al revés. Renombrar
-  renombra el PDF solo si lo creó esta app.
-- Un PDF que no viene de Boox (una exportación de OneNote, un escaneo…) no
-  se convierte en trazos: cada página se guarda como imagen y se enseña tal
-  cual, de solo lectura. Su texto a máquina se lee exacto del PDF y lo demás
-  (manuscrito, texto en imágenes) lo reconoce ML Kit sobre la página; todo
-  va al índice de búsqueda, con la página de cada coincidencia.
-- Las carpetas de Drive aparecen aquí con su misma ruta, pero solo las que
-  tienen algún PDF dentro (directo o en subcarpetas). Las vacías y las
-  auxiliares que Boox deja junto a cada PDF (una carpeta del mismo nombre con
-  un HTML de propiedades) no se enseñan. Una carpeta de Drive sin PDF que se
-  hubiera colado aquí se quita sola en la siguiente pasada, si aquí también
-  está vacía.
-- Borrar es simétrico: una nota borrada aquí manda su PDF a la papelera de
-  Drive, y un PDF borrado en Drive borra la nota de aquí.
+- Every notebook note is uploaded as an **editable vector PDF** to the mirror
+  of its folder: `Calendario Boox/NOTAS DEL DÍA/2026-01-25/Nota ….pdf`. The
+  PDF embeds the notebook, so it comes back exact.
+- **Import** in the notebook opens the system file picker (the user's Drive if
+  the Drive app is installed, local storage, USB…). Each chosen PDF is copied
+  to the mirror folder and becomes a note owned by the app: editable on top,
+  movable, renamable, deletable, tagged "importado" as a reminder of its
+  origin. A PDF that is not from Boox (a OneNote export, a scan) keeps each
+  page as a background image; its typed text is read from the PDF and the rest
+  (handwriting, text in images) is recognised by ML Kit on the page; all of it
+  goes to the search index, with the page of each match. When the app writes
+  such a note back, the page image and the typed text (invisible) go inside the
+  PDF, so the file in Drive still looks like the original and stays searchable.
+- Changing a note here replaces its PDF's content; changing it in Drive pulls
+  it again. If both changed, the most recent wins.
+- Moving a note between folders here moves the PDF in Drive, and vice versa.
+- Drive folders appear here with the same path, but only those with a PDF
+  inside (directly or in subfolders). Empty ones are not shown.
+- Deleting is symmetric: a note deleted here sends its PDF to Drive's bin, and
+  a PDF deleted in Drive deletes the note here.

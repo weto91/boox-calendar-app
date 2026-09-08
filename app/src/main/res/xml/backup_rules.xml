@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Los tokens de OAuth no salen del dispositivo. -->
+    <exclude domain="sharedpref" path="booxcal_auth.xml" />
+</full-backup-content>
