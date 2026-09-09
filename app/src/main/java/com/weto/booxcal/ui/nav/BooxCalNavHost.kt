@@ -48,6 +48,7 @@ import com.weto.booxcal.ui.theme.Eink
 import com.weto.booxcal.util.MILLIS_PER_DAY
 import java.time.LocalDate
 import com.weto.booxcal.ink.TemplateRef
+import com.weto.booxcal.ink.InkDocument
 
 /** Lo que pidió el «+»: el día y, si viene del lazo, qué crear y con qué título. */
 private data class CreateRequest(
@@ -56,6 +57,8 @@ private data class CreateRequest(
     val title: String,
     /** Qué hacer cuando lo creado se guarda (no al cancelar). */
     val onSaved: (() -> Unit)? = null,
+    /** Handwritten note to attach from the start (a drawing from the quick note). */
+    val ink: InkDocument? = null,
 )
 
 object Routes {
@@ -158,7 +161,7 @@ fun BooxCalNavHost(modifier: Modifier = Modifier) {
                     onOpenCalendar = { mode, date ->
                         navController.navigate(Routes.calendar(mode, date))
                     },
-                    onCreate = { day, kind, title, onSaved -> createRequest = CreateRequest(day, kind, title, onSaved) },
+                    onCreate = { day, kind, title, ink, onSaved -> createRequest = CreateRequest(day, kind, title, onSaved, ink) },
                     onOpenSearch = { navController.navigate(Routes.SEARCH) },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                     onOpenNotes = { navController.navigate(Routes.notes()) },
@@ -313,7 +316,7 @@ fun BooxCalNavHost(modifier: Modifier = Modifier) {
                     onClose = { navController.popBackStack() },
                     // La ventana de creación flota sobre el cuaderno, como en
                     // la portada: el texto reconocido va de título.
-                    onCreate = { day, kind, title -> createRequest = CreateRequest(day, kind, title) },
+                    onCreate = { day, kind, title, ink -> createRequest = CreateRequest(day, kind, title, ink = ink) },
                 )
             }
         }
@@ -374,6 +377,7 @@ private fun CreateWindow(
                 initialTitle = request.title,
                 onClose = onClose,
                 onSaved = request.onSaved,
+                initialInk = request.ink,
             )
         }
     }

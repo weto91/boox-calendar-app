@@ -4,10 +4,11 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.RectF
 import com.weto.booxcal.ink.InkDocument
+import com.weto.booxcal.di.Graph
 import com.weto.booxcal.ink.NoteStorage
+import com.weto.booxcal.ink.StrokeRenderer
 import kotlin.math.max
 
 /**
@@ -36,29 +37,8 @@ object NoteThumbnail {
             }
         }
 
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            style = Paint.Style.STROKE
-            strokeCap = Paint.Cap.ROUND
-            strokeJoin = Paint.Join.ROUND
-        }
-        document.strokes.forEach { stroke ->
-            val points = stroke.points
-            if (points.isEmpty()) return@forEach
-            val marker = stroke.tool == "MARKER"
-            paint.color = if (marker) stroke.colorArgb else Color.BLACK
-            paint.alpha = if (marker) 100 else 255
-            paint.strokeWidth = max(stroke.width * scale, 1f)
-            val path = Path()
-            path.moveTo(offsetX + points[0].x * scale, offsetY + points[0].y * scale)
-            for (i in 1 until points.size - 1) {
-                val midX = (points[i].x + points[i + 1].x) / 2f
-                val midY = (points[i].y + points[i + 1].y) / 2f
-                path.quadTo(offsetX + points[i].x * scale, offsetY + points[i].y * scale, offsetX + midX * scale, offsetY + midY * scale)
-            }
-            val last = points.last()
-            path.lineTo(offsetX + last.x * scale, offsetY + last.y * scale)
-            canvas.drawPath(path, paint)
-        }
+        // The same brushes as the canvas, at the widget's scale.
+        StrokeRenderer(Graph.appContext).drawDocument(canvas, document, scale, offsetX, offsetY)
 
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.BLACK }
         document.texts.forEach { text ->

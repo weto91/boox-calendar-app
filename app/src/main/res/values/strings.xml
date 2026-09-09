@@ -501,4 +501,14 @@
     <string name="template_access_hint">To use the PDFs in the “%1$s” folder as templates, allow the app to read files.</string>
     <string name="template_allow_access">Allow</string>
     <string name="template_empty_hint">No templates: put PDF files in the “%1$s” folder of the internal storage.</string>
+    <string name="ink_new_sheet_title">New sheet</string>
+    <string name="ink_new_sheet_text">What is written stays saved as a note of the day, and a new sheet opens.</string>
+    <string name="ink_clear_note_title">Delete the note</string>
+    <string name="ink_clear_note_text">Everything written on this sheet will be deleted.</string>
+    <string name="ink_clear_page_title">Clear the page</string>
+    <string name="ink_clear_page_text">Everything written on this page will be deleted.</string>
+    <string name="ink_create_confirm_drawing">The pencil drawing goes with it as a handwritten note.</string>
+    <string name="ink_create_confirm_highlight">The highlighted ballpoint text goes into the title and, without the highlight, into the attached handwritten note.</string>
+    <string name="ink_create_confirm_text">The rest of the ballpoint text becomes the title.</string>
+    <string name="common_continue">Continue</string>
 </resources>

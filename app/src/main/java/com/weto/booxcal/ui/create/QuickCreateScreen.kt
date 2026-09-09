@@ -101,11 +101,13 @@ fun QuickCreateScreen(
     initialTitle: String = "",
     /** Se llama justo antes de cerrar cuando se ha guardado algo (no al cancelar). */
     onSaved: (() -> Unit)? = null,
+    /** Handwritten note attached from the start; null for none. */
+    initialInk: InkDocument? = null,
 ) {
     val owner = remember { QuickCreateStoreOwner() }
     DisposableEffect(owner) { onDispose { owner.viewModelStore.clear() } }
     CompositionLocalProvider(LocalViewModelStoreOwner provides owner) {
-        QuickCreateContent(date, weekStart, onClose, modifier, initialReminder, initialTitle, onSaved)
+        QuickCreateContent(date, weekStart, onClose, modifier, initialReminder, initialTitle, onSaved, initialInk)
     }
 }
 
@@ -122,13 +124,14 @@ private fun QuickCreateContent(
     initialReminder: Boolean,
     initialTitle: String,
     onSaved: (() -> Unit)?,
+    initialInk: InkDocument?,
 ) {
     var tab by remember { mutableIntStateOf(if (initialReminder) 1 else 0) }
     val dismissSaved: () -> Unit = { onSaved?.invoke(); onClose() }
     // El trazo se guarda aquí y no dentro de cada pestaña: al cambiar de
     // pestaña la otra sale de la composición y se llevaría la nota con ella.
-    var eventInk by remember { mutableStateOf(InkDocument.EMPTY) }
-    var reminderInk by remember { mutableStateOf(InkDocument.EMPTY) }
+    var eventInk by remember { mutableStateOf(initialInk ?: InkDocument.EMPTY) }
+    var reminderInk by remember { mutableStateOf(initialInk ?: InkDocument.EMPTY) }
 
     Column(
         modifier

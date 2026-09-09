@@ -501,4 +501,14 @@
     <string name="template_access_hint">Para usar como plantillas los PDF de la carpeta «%1$s», permite a la app leer archivos.</string>
     <string name="template_allow_access">Permitir</string>
     <string name="template_empty_hint">Sin plantillas: deja archivos PDF en la carpeta «%1$s» de la memoria interna.</string>
+    <string name="ink_new_sheet_title">Hoja nueva</string>
+    <string name="ink_new_sheet_text">Lo escrito queda guardado como nota del día y se abre una hoja nueva.</string>
+    <string name="ink_clear_note_title">Borrar la nota</string>
+    <string name="ink_clear_note_text">Se borrará todo lo escrito en esta hoja.</string>
+    <string name="ink_clear_page_title">Borrar la página</string>
+    <string name="ink_clear_page_text">Se borrará todo lo escrito en esta página.</string>
+    <string name="ink_create_confirm_drawing">Lo dibujado a lápiz irá adjunto como nota manuscrita.</string>
+    <string name="ink_create_confirm_highlight">Lo escrito a bolígrafo y subrayado irá al título y, sin el subrayado, a la nota manuscrita adjunta.</string>
+    <string name="ink_create_confirm_text">El resto del texto a bolígrafo será el título.</string>
+    <string name="common_continue">Continuar</string>
 </resources>

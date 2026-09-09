@@ -70,6 +70,7 @@ import java.util.Locale
 import androidx.compose.ui.res.stringResource
 import com.weto.booxcal.R
 import com.weto.booxcal.util.rememberDateFormat
+import com.weto.booxcal.ink.InkDocument
 
 private val clock: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
@@ -97,7 +98,7 @@ fun ColumnScope.ModuleCard(
     onEditNote: (Long) -> Unit,
     onRenameNote: (Long, String) -> Unit,
     onDeleteNote: (Long) -> Unit,
-    onCreateFromText: (isEvent: Boolean, text: String, wholeNote: Boolean) -> Unit,
+    onCreateFromText: (isEvent: Boolean, text: String, wholeNote: Boolean, ink: InkDocument?) -> Unit,
 ) {
     val notebook = remember(state.currentNote?.id, state.currentNote?.updatedAt) {
         StrokeCodec.decodeNotebook(state.currentNote?.strokesJson)
@@ -110,11 +111,11 @@ fun ColumnScope.ModuleCard(
         key = "${state.selected}-${state.sheet}",
         onNotebookChanged = onSaveDayNote,
     )
-    board.onText = { target, text, wholeNote ->
+    board.onText = { target, text, wholeNote, ink ->
         when (target) {
             InkTextTarget.NOTE -> onNoteText(text)
-            InkTextTarget.EVENT -> onCreateFromText(true, text, wholeNote)
-            InkTextTarget.REMINDER -> onCreateFromText(false, text, wholeNote)
+            InkTextTarget.EVENT -> onCreateFromText(true, text, wholeNote, ink)
+            InkTextTarget.REMINDER -> onCreateFromText(false, text, wholeNote, ink)
         }
     }
 

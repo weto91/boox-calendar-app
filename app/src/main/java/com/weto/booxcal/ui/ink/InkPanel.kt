@@ -74,6 +74,9 @@ import kotlin.math.roundToInt
 import com.weto.booxcal.R
 import androidx.annotation.StringRes
 import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.ui.theme.EinkDialog
+import com.weto.booxcal.ink.Stroke
+import java.util.Locale
 
 /** Mando a distancia del lienzo: la vista es imperativa, Compose no. */
 @Stable
@@ -339,15 +342,67 @@ class InkBoardState internal constructor(
         target: InkTextTarget,
     ) {
         scope.launch {
-            val results = recognizeWholeNote(languageTag, textTool) ?: return@launch
-            if (results.isEmpty()) {
+            val attachment = attachmentFor(controller.document(), textTool)
+            val results = recognizeWholeNote(languageTag, textTool, quiet = attachment != null) ?: emptyList()
+            if (results.isEmpty() && attachment == null) {
                 flashNotice(text(R.string.ink_no_text_recognized))
                 return@launch
             }
             notice = null
-            val text = results.joinToString(" ") { (_, line) -> line.trim() }
-            onText?.invoke(target, text, true)
+            val title = results.joinToString(" ") { (_, line) -> line.trim() }.titleCased()
+            if (attachment == null) {
+                onText?.invoke(target, title, true, null)
+            } else {
+                pendingCreate = PendingCreate(target, title, attachment.ink, attachment.hasDrawing, attachment.hasHighlight)
+            }
         }
+    }
+
+    /** What travels as a handwritten note, and why. Null when nothing does. */
+    private class Attachment(val ink: InkDocument, val hasDrawing: Boolean, val hasHighlight: Boolean)
+
+    /**
+     * The strokes that become the handwritten attachment: what was drawn
+     * with the tip that is not the text tip (a pencil sketch next to
+     * ballpoint text), and the ballpoint text the highlighter went over,
+     * without the highlight itself. With "any" as text tool there is no
+     * drawing tip, so only the highlighted text is attached.
+     */
+    private fun attachmentFor(document: InkDocument, textTool: String): Attachment? {
+        val drawingTip = when (textTool) {
+            "pencil" -> PenTool.BALLPOINT.name
+            "ballpoint" -> PenTool.PENCIL.name
+            else -> null
+        }
+        val textTip = when (textTool) {
+            "pencil" -> PenTool.PENCIL.name
+            else -> PenTool.BALLPOINT.name
+        }
+        val drawing = document.strokes.filter { drawingTip != null && it.tool == drawingTip }
+        val markers = document.strokes.filter { it.tool == PenTool.MARKER.name }
+        val highlighted = document.strokes.filter { stroke ->
+            stroke.tool == textTip && markers.any { marker -> touches(marker, stroke) }
+        }
+        if (drawing.isEmpty() && highlighted.isEmpty()) return null
+        val kept = (drawing + highlighted).toSet()
+        return Attachment(
+            ink = InkDocument(
+                canvasWidth = document.canvasWidth,
+                canvasHeight = document.canvasHeight,
+                strokes = document.strokes.filter { it in kept },
+            ),
+            hasDrawing = drawing.isNotEmpty(),
+            hasHighlight = highlighted.isNotEmpty(),
+        )
+    }
+
+    private fun touches(a: Stroke, b: Stroke): Boolean {
+        if (a.points.isEmpty() || b.points.isEmpty()) return false
+        val pad = maxOf(a.width, b.width) / 2f
+        return a.points.minOf { it.x } - pad <= b.points.maxOf { it.x } &&
+            b.points.minOf { it.x } - pad <= a.points.maxOf { it.x } &&
+            a.points.minOf { it.y } - pad <= b.points.maxOf { it.y } &&
+            b.points.minOf { it.y } - pad <= a.points.maxOf { it.y }
     }
 
     /**
@@ -358,6 +413,8 @@ class InkBoardState internal constructor(
     private suspend fun recognizeWholeNote(
         languageTag: String,
         textTool: String,
+        /** Nothing written with the text tip is fine (there is a drawing to attach): no notice. */
+        quiet: Boolean = false,
     ): List<Pair<PenCanvasView.TextLine, String>>? {
         // Con una punta elegida en Ajustes no se adivina nada: lo de esa
         // punta es texto, lo demás dibujo.
@@ -369,6 +426,7 @@ class InkBoardState internal constructor(
         val guessing = onlyTool == null
         val lines = controller.textLines(onlyTool)
         if (lines.isEmpty()) {
+            if (quiet) return emptyList()
             flashNotice(
                 text(
                     when (textTool) {
@@ -427,7 +485,25 @@ class InkBoardState internal constructor(
      * nota (true) o de una selección del lazo (false). Quien crea un evento
      * o un recordatorio con toda la nota puede querer borrarla después.
      */
-    var onText: ((InkTextTarget, String, Boolean) -> Unit)? = null
+    var onText: ((InkTextTarget, String, Boolean, InkDocument?) -> Unit)? = null
+
+    /**
+     * A creation waiting for the user's yes: the note has something that will
+     * travel as a handwritten attachment (a pencil drawing, highlighted
+     * ballpoint text), and that is said before it happens.
+     */
+    var pendingCreate by mutableStateOf<PendingCreate?>(null)
+        private set
+
+    fun confirmCreate() {
+        val pending = pendingCreate ?: return
+        pendingCreate = null
+        onText?.invoke(pending.target, pending.title, true, pending.ink)
+    }
+
+    fun cancelCreate() {
+        pendingCreate = null
+    }
 
     val pageCount: Int get() = notebook.pageCount
 
@@ -492,7 +568,10 @@ fun rememberInkBoardState(
     // valor de arranque, que dejaría la punta de fábrica.
     val settings by Graph.settings.settings.collectAsStateWithLifecycle<AppSettings?>(initialValue = null)
     val saved = settings?.toInkTools()
-    LaunchedEffect(saved) {
+    // Keyed on the state too: a fresh sheet (after turning the note into an
+    // event, say) is a new state object that has to load the saved tools
+    // again, or it would start with the factory pencil.
+    LaunchedEffect(state, saved) {
         if (saved == null) return@LaunchedEffect
         state.tools = if (state.toolsLoaded) saved.copy(tool = state.tools.tool, lastTip = state.tools.lastTip) else saved
         state.toolsLoaded = true
@@ -654,9 +733,9 @@ private fun SelectionBar(state: InkBoardState) {
                             // el lápiz. Quien monta el cuaderno se entera igual.
                             state.controller.convertSelectionToText(candidate)
                             state.revision++
-                            state.onText?.invoke(kind, candidate, false)
+                            state.onText?.invoke(kind, candidate, false, null)
                         } else {
-                            kind?.let { state.onText?.invoke(it, candidate, false) }
+                            kind?.let { state.onText?.invoke(it, candidate.titleCased(), false, null) }
                             state.controller.clearSelection()
                         }
                     })
@@ -823,6 +902,9 @@ fun InkToolbar(
     readOnly: Boolean = false,
 ) {
     var options by remember { mutableStateOf(false) }
+    // Which destructive action is waiting for a yes: a new sheet with
+    // writing on the current one, or wiping the sheet.
+    var confirm by remember { mutableStateOf<ToolbarConfirm?>(null) }
     val box = if (compact) 44.dp else MinTouchTarget
     val glyph = if (compact) 20.dp else 22.dp
     val drawing = state.tools.tool != PenTool.ERASER && state.tools.tool != PenTool.LASSO
@@ -913,7 +995,8 @@ fun InkToolbar(
         if (onNewSheet != null && !readOnly) {
             EinkIconButton(
                 glyph = Glyph.NewSheet,
-                onClick = onNewSheet,
+                // With nothing written there is nothing to warn about.
+                onClick = { if (state.controller.isEmpty()) onNewSheet() else confirm = ToolbarConfirm.NEW_SHEET },
                 contentDescription = stringResource(R.string.common_new_sheet),
                 size = glyph,
                 box = box,
@@ -921,7 +1004,8 @@ fun InkToolbar(
         }
         if (!readOnly) EinkIconButton(
             glyph = Glyph.Trash,
-            onClick = { state.controller.clear(); state.revision++ },
+            onClick = { if (!state.controller.isEmpty()) confirm = ToolbarConfirm.CLEAR },
+            enabled = state.revision.let { !state.controller.isEmpty() },
             contentDescription = stringResource(if (onNewSheet != null) R.string.ink_clear_note else R.string.ink_clear_page),
             size = glyph,
             box = box,
@@ -963,7 +1047,76 @@ fun InkToolbar(
             )
         }
     }
+
+    confirm?.let { pending ->
+        val wholeNote = onNewSheet != null
+        val title = stringResource(
+            when (pending) {
+                ToolbarConfirm.NEW_SHEET -> R.string.ink_new_sheet_title
+                ToolbarConfirm.CLEAR -> if (wholeNote) R.string.ink_clear_note_title else R.string.ink_clear_page_title
+            }
+        )
+        val text = stringResource(
+            when (pending) {
+                ToolbarConfirm.NEW_SHEET -> R.string.ink_new_sheet_text
+                ToolbarConfirm.CLEAR -> if (wholeNote) R.string.ink_clear_note_text else R.string.ink_clear_page_text
+            }
+        )
+        EinkDialog(onDismiss = { confirm = null }, title = title, modifier = Modifier.width(420.dp)) {
+            Text(text, style = MaterialTheme.typography.bodyLarge, color = Eink.Black)
+            Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.weight(1f))
+                EinkButton(stringResource(R.string.common_cancel), { confirm = null })
+                EinkButton(
+                    stringResource(if (pending == ToolbarConfirm.NEW_SHEET) R.string.common_new_sheet else R.string.common_delete),
+                    {
+                        confirm = null
+                        when (pending) {
+                            ToolbarConfirm.NEW_SHEET -> onNewSheet?.invoke()
+                            ToolbarConfirm.CLEAR -> { state.controller.clear(); state.revision++ }
+                        }
+                    },
+                    emphasized = true,
+                )
+            }
+        }
+    }
+
+    state.pendingCreate?.let { pending ->
+        EinkDialog(
+            onDismiss = state::cancelCreate,
+            title = stringResource(if (pending.target == InkTextTarget.EVENT) R.string.ink_create_event else R.string.ink_create_reminder),
+            modifier = Modifier.width(440.dp),
+        ) {
+            val lines = buildList {
+                if (pending.hasDrawing) add(stringResource(R.string.ink_create_confirm_drawing))
+                if (pending.hasHighlight) add(stringResource(R.string.ink_create_confirm_highlight))
+                if (pending.title.isNotBlank()) add(stringResource(R.string.ink_create_confirm_text))
+            }
+            Text(lines.joinToString(" "), style = MaterialTheme.typography.bodyLarge, color = Eink.Black)
+            Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(Modifier.weight(1f))
+                EinkButton(stringResource(R.string.common_cancel), state::cancelCreate)
+                EinkButton(stringResource(R.string.common_continue), state::confirmCreate, emphasized = true)
+            }
+        }
+    }
 }
+
+/** A creation from the whole note that waits for a yes: see [InkBoardState.pendingCreate]. */
+class PendingCreate(
+    val target: InkTextTarget,
+    val title: String,
+    val ink: InkDocument,
+    val hasDrawing: Boolean,
+    val hasHighlight: Boolean,
+)
+
+/** The recogniser is poor at case: a title always starts with a capital. */
+private fun String.titleCased(): String = replaceFirstChar { it.titlecase(Locale.getDefault()) }
+
+/** The two toolbar actions that ask before acting. */
+private enum class ToolbarConfirm { NEW_SHEET, CLEAR }
 
 /** Cuaderno con sus herramientas encima, para las pantallas que le dan todo el espacio. */
 @Composable
@@ -976,16 +1129,16 @@ fun InkBoard(
     showPages: Boolean = true,
     onNotebookChanged: (InkNotebook) -> Unit,
     onUseText: (String) -> Unit = {},
-    onCreateEntry: ((isEvent: Boolean, text: String) -> Unit)? = null,
+    onCreateEntry: ((isEvent: Boolean, text: String, ink: InkDocument?) -> Unit)? = null,
     readOnly: Boolean = false,
     initialPage: Int = 0,
 ) {
     val state = rememberInkBoardState(notebook, key, onNotebookChanged, initialPage)
-    state.onText = { target, text, _ ->
+    state.onText = { target, text, _, ink ->
         when (target) {
             InkTextTarget.NOTE -> onUseText(text)
-            InkTextTarget.EVENT -> onCreateEntry?.invoke(true, text) ?: onUseText(text)
-            InkTextTarget.REMINDER -> onCreateEntry?.invoke(false, text) ?: onUseText(text)
+            InkTextTarget.EVENT -> onCreateEntry?.invoke(true, text, ink) ?: onUseText(text)
+            InkTextTarget.REMINDER -> onCreateEntry?.invoke(false, text, ink) ?: onUseText(text)
         }
     }
 

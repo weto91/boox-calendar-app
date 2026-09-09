@@ -60,6 +60,7 @@ import com.weto.booxcal.ink.NoteTemplates
 import com.weto.booxcal.ink.TemplateRef
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.weto.booxcal.ink.InkDocument
 
 data class DayNoteState(
     val noteId: Long? = null,
@@ -222,7 +223,7 @@ fun DayNoteScreen(
     modifier: Modifier = Modifier,
     noteId: Long? = null,
     /** Crear un evento ("event") o un recordatorio ("reminder") con el texto reconocido. */
-    onCreate: ((LocalDate, String, String) -> Unit)? = null,
+    onCreate: ((LocalDate, String, String, InkDocument?) -> Unit)? = null,
     /** Carpeta del gestor para una nota nueva; con `anchorToDay` en false no es nota del día. */
     folderId: Long? = null,
     anchorToDay: Boolean = true,
@@ -316,7 +317,7 @@ fun DayNoteScreen(
                 viewModel.setRecognizedText(text)
             },
             onCreateEntry = onCreate?.let { create ->
-                { isEvent, text -> create(date, if (isEvent) "event" else "reminder", text) }
+                { isEvent, text, ink -> create(date, if (isEvent) "event" else "reminder", text, ink) }
             },
             readOnly = state.readOnly,
         )

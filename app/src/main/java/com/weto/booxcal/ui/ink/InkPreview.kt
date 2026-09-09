@@ -5,12 +5,9 @@ import android.graphics.RectF
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
@@ -22,7 +19,7 @@ import com.weto.booxcal.di.Graph
 import com.weto.booxcal.ink.InkDocument
 import com.weto.booxcal.ink.InkFonts
 import com.weto.booxcal.ink.NoteStorage
-import com.weto.booxcal.ink.PenCanvasView
+import com.weto.booxcal.ink.StrokeRenderer
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.weto.booxcal.ui.theme.Eink
@@ -77,6 +74,7 @@ fun InkPreview(
 ) {
     val settings by Graph.settings.settings.collectAsStateWithLifecycle(initialValue = AppSettings())
     val context = LocalContext.current
+    val renderer = remember(context) { StrokeRenderer(context) }
     val textPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
         color = tint.toArgb()
         typeface = InkFonts.typeface(context, settings.inkTextFont)
@@ -106,44 +104,9 @@ fun InkPreview(
             }
         }
 
-        document.strokes.forEach { stroke ->
-            val points = stroke.points
-            if (points.isEmpty()) return@forEach
-
-            val path = Path()
-            path.moveTo(offsetX + points[0].x * scale, offsetY + points[0].y * scale)
-            if (points.size == 1) {
-                path.lineTo(offsetX + points[0].x * scale, offsetY + points[0].y * scale)
-            }
-            for (i in 1 until points.size - 1) {
-                val midX = (points[i].x + points[i + 1].x) / 2f
-                val midY = (points[i].y + points[i + 1].y) / 2f
-                path.quadraticTo(
-                    offsetX + points[i].x * scale,
-                    offsetY + points[i].y * scale,
-                    offsetX + midX * scale,
-                    offsetY + midY * scale,
-                )
-            }
-            val last = points.last()
-            path.lineTo(offsetX + last.x * scale, offsetY + last.y * scale)
-
-            // El subrayador, en su color y translúcido, con extremos rectos:
-            // ancho como es, pintado en negro tapaba la miniatura.
-            val marker = stroke.tool == "MARKER"
-            val width = when {
-                marker && stroke.legacy -> PenCanvasView.markerWidth(stroke.width)
-                else -> stroke.width
-            }
-            drawPath(
-                path = path,
-                color = if (marker) Color(stroke.colorArgb).copy(alpha = 0.4f) else tint,
-                style = Stroke(
-                    width = max(width * scale, 1f),
-                    cap = if (marker) StrokeCap.Square else StrokeCap.Round,
-                    join = StrokeJoin.Round,
-                ),
-            )
+        // The same brushes as the canvas: grain, ballpoint, highlighter.
+        drawIntoCanvas { canvas ->
+            renderer.drawDocument(canvas.nativeCanvas, document, scale, offsetX, offsetY)
         }
 
         // Los textos convertidos, con el mismo encaje que los trazos.

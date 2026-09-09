@@ -58,6 +58,7 @@ import androidx.compose.ui.res.stringResource
 import com.weto.booxcal.R
 import com.weto.booxcal.util.rememberLocale
 import com.weto.booxcal.ui.theme.relativeTime
+import com.weto.booxcal.ink.InkDocument
 
 /**
  * Panel principal.
@@ -76,7 +77,7 @@ fun HomeScreen(
      * guarda de verdad (no al cancelar): la nota rápida que se convirtió
      * entera en evento o recordatorio se borra ahí.
      */
-    onCreate: (date: LocalDate, kind: String, title: String, onSaved: (() -> Unit)?) -> Unit,
+    onCreate: (date: LocalDate, kind: String, title: String, ink: InkDocument?, onSaved: (() -> Unit)?) -> Unit,
     onOpenTask: (Long) -> Unit,
     onOpenTasks: () -> Unit,
     onOpenDayNote: (LocalDate) -> Unit,
@@ -178,11 +179,12 @@ fun HomeScreen(
                     onRenameNote = viewModel::renameNote,
                     onDeleteNote = viewModel::deleteNote,
                     onOpenNote = { note -> onOpenNote(state.selected, note.id) },
-                    onCreateFromText = { isEvent, text, wholeNote ->
+                    onCreateFromText = { isEvent, text, wholeNote, ink ->
                         onCreate(
                             state.selected,
                             if (isEvent) "event" else "reminder",
                             text,
+                            ink,
                             // Toda la nota ya es el evento o el recordatorio:
                             // en cuanto se guarde, la nota sobra. Una selección
                             // del lazo no: el resto de la nota sigue valiendo.
@@ -244,7 +246,7 @@ fun HomeScreen(
         }
 
         EinkFab(
-            onClick = { onCreate(state.selected, "event", "", null) },
+            onClick = { onCreate(state.selected, "event", "", null, null) },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = 22.dp, bottom = 22.dp),
