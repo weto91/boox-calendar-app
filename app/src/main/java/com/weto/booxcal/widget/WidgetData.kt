@@ -17,6 +17,10 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.temporal.TemporalAdjusters
 import java.util.Locale
+import com.weto.booxcal.R
+import androidx.annotation.StringRes
+import com.weto.booxcal.util.AppLocale
+import com.weto.booxcal.util.DateFormats
 
 /** Una fila de una lista de widget. */
 sealed class WidgetRow {
@@ -104,7 +108,7 @@ object WidgetData {
                 val total = buckets.values.sumOf { it.entryCount }
                 val cells = buckets.values.map { bucket ->
                     WeekDayCell(
-                        letter = bucket.date.format(DAY_LETTER).uppercase(Locale.getDefault()).take(1),
+                        letter = bucket.date.format(DAY_LETTER).uppercase(locale()).take(1),
                         number = bucket.date.dayOfMonth.toString(),
                         date = bucket.date,
                         isToday = bucket.date == today,
@@ -113,7 +117,7 @@ object WidgetData {
                 }
                 WidgetSummary(
                     title = if (kind == WidgetKind.AGENDA) today.format(LONG_DAY).capitalized() else weekTitle(from, to),
-                    subtitle = if (kind == WidgetKind.AGENDA) countText(buckets[today] ?: DayBucket(today)) else plural(total, "entrada", "entradas"),
+                    subtitle = if (kind == WidgetKind.AGENDA) countText(buckets[today] ?: DayBucket(today)) else plural(total, R.string.widget_entries_one, R.string.widget_entries_many),
                     dayNumber = today.dayOfMonth.toString(),
                     weekday = today.format(WEEKDAY).capitalized(),
                     month = today.format(MONTH).capitalized(),
@@ -124,36 +128,38 @@ object WidgetData {
             WidgetKind.NOTES -> {
                 val notes = Graph.inkNoteRepository.observeForDay(today.toDayMillis()).first()
                 WidgetSummary(
-                    title = "Notas de hoy",
+                    title = text(R.string.widget_notes_today),
                     subtitle = today.format(DAY_MONTH),
                     noteCount = notes.size,
                 )
             }
 
-            WidgetKind.SEARCH -> WidgetSummary(title = "Buscar", subtitle = "notas, eventos y recordatorios")
+            WidgetKind.SEARCH -> WidgetSummary(title = text(R.string.common_search), subtitle = text(R.string.widget_search_subtitle))
         }
     }
 
     fun weekTitle(from: LocalDate, toExclusive: LocalDate): String {
         val last = toExclusive.minusDays(1)
         return if (from.month == last.month) {
-            "Semana del ${from.dayOfMonth} al ${last.format(DAY_MONTH)}"
+            text(R.string.widget_week_of_same_month, from.dayOfMonth, last.format(DAY_MONTH))
         } else {
-            "Semana del ${from.format(DAY_MONTH)} al ${last.format(DAY_MONTH)}"
+            text(R.string.widget_week_of, from.format(DAY_MONTH), last.format(DAY_MONTH))
         }
     }
 
     private fun countText(bucket: DayBucket): String {
         val events = bucket.banners.size + bucket.timed.size
         val tasks = bucket.tasks.size
-        if (events == 0 && tasks == 0) return "Nada previsto"
+        if (events == 0 && tasks == 0) return text(R.string.widget_nothing_planned)
         return listOfNotNull(
-            events.takeIf { it > 0 }?.let { plural(it, "evento", "eventos") },
-            tasks.takeIf { it > 0 }?.let { plural(it, "recordatorio", "recordatorios") },
+            events.takeIf { it > 0 }?.let { plural(it, R.string.widget_events_one, R.string.widget_events_many) },
+            tasks.takeIf { it > 0 }?.let { plural(it, R.string.widget_reminders_one, R.string.widget_reminders_many) },
         ).joinToString(" · ")
     }
 
-    private fun plural(n: Int, one: String, many: String) = "$n ${if (n == 1) one else many}"
+    private fun plural(n: Int, @StringRes one: Int, @StringRes many: Int) = text(if (n == 1) one else many, n)
+
+    private fun text(@StringRes id: Int, vararg args: Any): String = Graph.appContext.getString(id, *args)
 
     // --- Listas ----------------------------------------------------------------
 
@@ -178,11 +184,11 @@ object WidgetData {
                 val (from, to) = week(today, weekStart())
                 val buckets = buckets(from, to)
                 val out = mutableListOf<WidgetRow>()
-                out += WidgetRow.Section("Hoy")
+                out += WidgetRow.Section(text(R.string.common_today))
                 out += entries(buckets[today] ?: DayBucket(today), zone)
                 val rest = buckets.values.filter { it.date > today }
                 if (rest.isNotEmpty()) {
-                    out += WidgetRow.Section("Resto de la semana")
+                    out += WidgetRow.Section(text(R.string.widget_rest_of_week))
                     rest.forEach { bucket ->
                         out += WidgetRow.Day(bucket.date, false, bucket.entryCount == 0, AgendaWidgets.dayRoute(bucket.date))
                         out += entries(bucket, zone)
@@ -195,7 +201,7 @@ object WidgetData {
                 Graph.inkNoteRepository.observeForDay(today.toDayMillis()).first().map { note ->
                     WidgetRow.Note(
                         noteId = note.id,
-                        title = note.title?.takeIf { it.isNotBlank() } ?: note.firstLine() ?: "Nota de las ${note.createdAtClock(zone)}",
+                        title = note.title?.takeIf { it.isNotBlank() } ?: note.firstLine() ?: text(R.string.note_at_time, note.createdAtClock(zone)),
                         detail = note.createdAtClock(zone),
                         route = Routes.dayNote(today, note.id),
                         version = note.updatedAt,
@@ -210,7 +216,7 @@ object WidgetData {
                     .map { note ->
                         WidgetRow.Note(
                             noteId = note.id,
-                            title = note.title?.takeIf { it.isNotBlank() } ?: note.firstLine() ?: "Nota",
+                            title = note.title?.takeIf { it.isNotBlank() } ?: note.firstLine() ?: text(R.string.widget_note),
                             detail = note.recognizedFlat.orEmpty().replace('\n', ' ').trim().take(80),
                             route = Routes.notes(note.id),
                             version = note.updatedAt,
@@ -222,7 +228,7 @@ object WidgetData {
 
     private fun entries(bucket: DayBucket, zone: ZoneId): List<WidgetRow> {
         val out = mutableListOf<WidgetRow>()
-        bucket.banners.forEach { row -> out += entry(row, "Todo el día") }
+        bucket.banners.forEach { row -> out += entry(row, text(R.string.common_all_day)) }
         bucket.timed.forEach { row ->
             out += entry(row, resolveDateTime(row.event.startMillis, false, zone).toLocalTime().format(CLOCK))
         }
@@ -240,7 +246,7 @@ object WidgetData {
     )
 
     private fun task(row: TaskWithList) = WidgetRow.Entry(
-        time = if (row.task.isCompleted) "Hecho" else "Recordatorio",
+        time = text(if (row.task.isCompleted) R.string.common_done else R.string.common_reminder),
         title = row.task.title,
         colorArgb = row.listColorArgb,
         route = Routes.task(taskId = row.task.id),
@@ -254,13 +260,15 @@ object WidgetData {
     private fun InkNoteEntity.createdAtClock(zone: ZoneId): String =
         java.time.Instant.ofEpochMilli(createdAt).atZone(zone).toLocalTime().format(CLOCK)
 
-    private fun String.capitalized() = replaceFirstChar { it.titlecase(Locale.getDefault()) }
+    private fun String.capitalized() = replaceFirstChar { it.titlecase(locale()) }
+
+    private fun locale(): Locale = AppLocale.locale(Graph.appContext)
 
     private const val RECENT_DOCS = 12
     private val CLOCK: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-    private val LONG_DAY: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", Locale.getDefault())
-    private val WEEKDAY: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE", Locale.getDefault())
-    private val MONTH: DateTimeFormatter = DateTimeFormatter.ofPattern("MMMM", Locale.getDefault())
-    private val DAY_MONTH: DateTimeFormatter = DateTimeFormatter.ofPattern("d 'de' MMMM", Locale.getDefault())
-    private val DAY_LETTER: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEEE", Locale.getDefault())
+    private val LONG_DAY: DateTimeFormatter get() = DateFormats.of(Graph.appContext, R.string.pattern_weekday_day_month)
+    private val WEEKDAY: DateTimeFormatter get() = DateFormats.literal("EEEE", locale())
+    private val MONTH: DateTimeFormatter get() = DateFormats.literal("MMMM", locale())
+    private val DAY_MONTH: DateTimeFormatter get() = DateFormats.of(Graph.appContext, R.string.pattern_day_month_long)
+    private val DAY_LETTER: DateTimeFormatter get() = DateFormats.literal("EEEEE", locale())
 }

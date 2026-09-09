@@ -54,6 +54,10 @@ import com.weto.booxcal.ui.theme.Glyph
 import com.weto.booxcal.ui.theme.monthTitle
 import java.time.LocalDate
 import java.time.ZoneId
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
+import com.weto.booxcal.util.rememberLocale
+import com.weto.booxcal.ui.theme.relativeTime
 
 /**
  * Panel principal.
@@ -109,7 +113,7 @@ fun HomeScreen(
     Box(modifier.fillMaxSize().background(Eink.White)) {
         Column(Modifier.fillMaxSize()) {
             HomeTopBar(
-                title = monthTitle(state.anchor),
+                title = monthTitle(state.anchor, rememberLocale()),
                 syncing = state.syncing,
                 onPrevious = viewModel::previousMonth,
                 onNext = viewModel::nextMonth,
@@ -211,12 +215,12 @@ fun HomeScreen(
                     EinkTile(Glyph.SyncCloud, Accent.Sync, size = 34.dp, glyphSize = 20.dp)
                     Column(Modifier.weight(1f).padding(start = 12.dp)) {
                         Text(
-                            "Sin cuenta de Google: nada se sincroniza",
+                            stringResource(R.string.home_no_account_title),
                             style = MaterialTheme.typography.titleMedium,
                             color = Eink.Black,
                         )
                         Text(
-                            "Toca aquí para conectarla. Se hace una sola vez.",
+                            stringResource(R.string.home_no_account_hint),
                             style = MaterialTheme.typography.bodySmall,
                             color = Eink.Graphite,
                         )
@@ -225,7 +229,7 @@ fun HomeScreen(
                 }
             } else {
                 Text(
-                    text = state.syncStatus,
+                    text = syncStatusText(state),
                     style = MaterialTheme.typography.labelSmall,
                     color = Eink.Graphite,
                     maxLines = 1,
@@ -278,27 +282,27 @@ private enum class MenuAction { MONTH, WEEK, DAY, REMINDERS, NOTEBOOK, SEARCH, S
  */
 @Composable
 private fun HomeMenuDialog(onDismiss: () -> Unit, onPick: (MenuAction) -> Unit) {
-    EinkDialog(onDismiss = onDismiss, title = "Menú", modifier = Modifier.width(420.dp)) {
+    EinkDialog(onDismiss = onDismiss, title = stringResource(R.string.common_menu), modifier = Modifier.width(420.dp)) {
         Column(Modifier.verticalScroll(rememberScrollState())) {
             EinkMenuRow(
                 glyph = Glyph.GridMonth,
                 accent = Accent.Event,
-                label = "Mes completo",
-                subtitle = "La rejilla del mes a pantalla entera",
+                label = stringResource(R.string.home_menu_month),
+                subtitle = stringResource(R.string.home_menu_month_hint),
                 onClick = { onPick(MenuAction.MONTH) },
             )
             EinkMenuRow(
                 glyph = Glyph.GridWeek,
                 accent = Accent.Event,
-                label = "Semana",
-                subtitle = "Siete días con sus horas",
+                label = stringResource(R.string.common_week),
+                subtitle = stringResource(R.string.home_menu_week_hint),
                 onClick = { onPick(MenuAction.WEEK) },
             )
             EinkMenuRow(
                 glyph = Glyph.GridDay,
                 accent = Accent.Event,
-                label = "Día",
-                subtitle = "Un solo día, hora a hora",
+                label = stringResource(R.string.common_day),
+                subtitle = stringResource(R.string.home_menu_day_hint),
                 onClick = { onPick(MenuAction.DAY) },
             )
 
@@ -307,22 +311,22 @@ private fun HomeMenuDialog(onDismiss: () -> Unit, onPick: (MenuAction) -> Unit) 
             EinkMenuRow(
                 glyph = Glyph.ListCheck,
                 accent = Accent.Reminder,
-                label = "Recordatorios",
-                subtitle = "Todas las listas y lo ya completado",
+                label = stringResource(R.string.common_reminders),
+                subtitle = stringResource(R.string.home_menu_reminders_hint),
                 onClick = { onPick(MenuAction.REMINDERS) },
             )
             EinkMenuRow(
                 glyph = Glyph.Folder,
                 accent = Accent.Note,
-                label = "Cuaderno",
-                subtitle = "Todas las notas, por carpetas y etiquetas, y las de Google Drive",
+                label = stringResource(R.string.common_notebook),
+                subtitle = stringResource(R.string.home_menu_notebook_hint),
                 onClick = { onPick(MenuAction.NOTEBOOK) },
             )
             EinkMenuRow(
                 glyph = Glyph.Search,
                 accent = Accent.Search,
-                label = "Buscar",
-                subtitle = "En eventos, recordatorios y notas a mano",
+                label = stringResource(R.string.common_search),
+                subtitle = stringResource(R.string.home_menu_search_hint),
                 onClick = { onPick(MenuAction.SEARCH) },
             )
 
@@ -331,13 +335,13 @@ private fun HomeMenuDialog(onDismiss: () -> Unit, onPick: (MenuAction) -> Unit) 
             EinkMenuRow(
                 glyph = Glyph.Gear,
                 accent = Accent.Settings,
-                label = "Cuenta y ajustes",
-                subtitle = "Tu cuenta de Google, el lápiz y la limpieza",
+                label = stringResource(R.string.home_menu_settings),
+                subtitle = stringResource(R.string.home_menu_settings_hint),
                 onClick = { onPick(MenuAction.SETTINGS) },
             )
 
             Spacer(Modifier.height(10.dp))
-            EinkButton("Cerrar", onDismiss, Modifier.fillMaxWidth())
+            EinkButton(stringResource(R.string.common_close), onDismiss, Modifier.fillMaxWidth())
         }
     }
 }
@@ -360,14 +364,14 @@ private fun HomeTopBar(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = "Calendario",
+            text = stringResource(R.string.common_calendar),
             style = MaterialTheme.typography.titleLarge,
             color = Eink.Black,
         )
 
         Spacer(Modifier.weight(1f))
 
-        EinkIconButton(Glyph.ChevronLeft, onPrevious, contentDescription = "Mes anterior")
+        EinkIconButton(Glyph.ChevronLeft, onPrevious, contentDescription = stringResource(R.string.home_previous_month))
         Text(
             text = title,
             style = MaterialTheme.typography.headlineSmall,
@@ -375,20 +379,20 @@ private fun HomeTopBar(
             maxLines = 1,
             modifier = Modifier.padding(horizontal = 6.dp),
         )
-        EinkIconButton(Glyph.ChevronRight, onNext, contentDescription = "Mes siguiente")
+        EinkIconButton(Glyph.ChevronRight, onNext, contentDescription = stringResource(R.string.home_next_month))
 
         Spacer(Modifier.weight(1f))
 
         EinkIconButton(
             glyph = Glyph.Search,
             onClick = onSearch,
-            contentDescription = "Buscar",
+            contentDescription = stringResource(R.string.common_search),
             accent = Accent.Search,
         )
         EinkIconButton(
             glyph = Glyph.SyncCloud,
             onClick = onSync,
-            contentDescription = if (syncing) "Sincronizando" else "Sincronizar",
+            contentDescription = stringResource(if (syncing) R.string.common_syncing else R.string.common_sync),
             // Sin animación de progreso: en e-ink un spinner es un refresco
             // continuo. El estado se dice apagando el icono.
             enabled = !syncing,
@@ -397,16 +401,26 @@ private fun HomeTopBar(
         EinkIconButton(
             glyph = Glyph.Today,
             onClick = onToday,
-            contentDescription = "Hoy",
+            contentDescription = stringResource(R.string.common_today),
             accent = Accent.Today,
         )
         // El menú se queda en negro: es el único botón que no hace una cosa
         // concreta, y darle color lo pondría al mismo nivel que los demás.
-        EinkIconButton(Glyph.Menu, onMenu, contentDescription = "Menú")
+        EinkIconButton(Glyph.Menu, onMenu, contentDescription = stringResource(R.string.common_menu))
 
         Spacer(Modifier.width(2.dp))
     }
 }
 
-/** Parte del alto (descontada la barra) para el mes y los eventos; el resto, para los módulos. */
+/** One line that says whether sync is working: tapping the cloud has no other visible effect. */
+@Composable
+private fun syncStatusText(state: HomeUiState): String = when {
+    !state.accountConnected -> stringResource(R.string.sync_status_no_account)
+    state.syncing -> stringResource(R.string.sync_status_syncing)
+    state.lastSyncError != null -> stringResource(R.string.common_not_synced, state.lastSyncError)
+    state.lastSyncAt > 0 -> stringResource(R.string.sync_status_synced, relativeTime(state.lastSyncAt))
+    else -> stringResource(R.string.sync_status_never)
+}
+
+/** Part of the height (bar excluded) for the month and the day's items; the rest for the modules. */
 private const val TOP_FRACTION = 0.43f

@@ -21,6 +21,9 @@ import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import retrofit2.HttpException
 import java.io.IOException
+import com.weto.booxcal.R
+import com.weto.booxcal.di.Graph
+import androidx.annotation.StringRes
 
 private const val PAGE_SIZE = 250
 private const val TASK_PAGE_SIZE = 100
@@ -127,7 +130,7 @@ class GoogleBackend(
     override suspend fun createEvent(collectionId: String, event: RemoteEvent): RemoteEvent =
         runApi {
             calendarApi.createEvent(collectionId, eventBody(event)).toRemoteEvent()
-                ?: throw BackendTransientException("Google devolvió un evento sin id")
+                ?: throw BackendTransientException(text(R.string.backend_event_without_id))
         }
 
     override suspend fun updateEvent(collectionId: String, event: RemoteEvent): RemoteEvent =
@@ -135,7 +138,7 @@ class GoogleBackend(
             val remoteId = event.remoteId
                 ?: throw IllegalArgumentException("updateEvent sin remoteId")
             calendarApi.patchEvent(collectionId, remoteId, eventBody(event)).toRemoteEvent()
-                ?: throw BackendTransientException("Google devolvió un evento sin id")
+                ?: throw BackendTransientException(text(R.string.backend_event_without_id))
         }
 
     override suspend fun deleteEvent(collectionId: String, remoteId: String) {
@@ -183,13 +186,13 @@ class GoogleBackend(
 
     override suspend fun createTask(collectionId: String, task: RemoteTask): RemoteTask = runApi {
         tasksApi.createTask(collectionId, taskBody(task)).toRemoteTask()
-            ?: throw BackendTransientException("Google devolvió una tarea sin id")
+            ?: throw BackendTransientException(text(R.string.backend_task_without_id))
     }
 
     override suspend fun updateTask(collectionId: String, task: RemoteTask): RemoteTask = runApi {
         val remoteId = task.remoteId ?: throw IllegalArgumentException("updateTask sin remoteId")
         tasksApi.patchTask(collectionId, remoteId, taskBody(task)).toRemoteTask()
-            ?: throw BackendTransientException("Google devolvió una tarea sin id")
+            ?: throw BackendTransientException(text(R.string.backend_task_without_id))
     }
 
     override suspend fun deleteTask(collectionId: String, remoteId: String) {
@@ -337,18 +340,20 @@ class GoogleBackend(
         }
 
     private fun HttpException.toBackendException(): Exception = when (code()) {
-        401, 403 -> BackendAuthException("Google rechazó las credenciales (${code()})", this)
-        410 -> SyncCursorExpiredException("El cursor de sincronización caducó")
-        408, 429, in 500..599 -> BackendTransientException("Google respondió ${code()}", this)
-        else -> BackendTransientException("Google respondió ${code()}: ${message()}", this)
+        401, 403 -> BackendAuthException(text(R.string.backend_credentials_rejected, code()), this)
+        410 -> SyncCursorExpiredException(text(R.string.backend_cursor_expired))
+        408, 429, in 500..599 -> BackendTransientException(text(R.string.backend_responded, code()), this)
+        else -> BackendTransientException(text(R.string.backend_responded_message, code(), message()), this)
     }
+
+    private fun text(@StringRes id: Int, vararg args: Any): String = Graph.appContext.getString(id, *args)
 
     private fun IOException.toBackendException(): Exception {
         // El interceptor envuelve los fallos de autorización en IOException
         // porque OkHttp no deja escapar otra cosa desde un interceptor.
         val root = cause
         return if (root is BackendAuthException) root
-        else BackendTransientException(message ?: "Fallo de red", this)
+        else BackendTransientException(message ?: text(R.string.backend_network_error), this)
     }
 
     companion object {

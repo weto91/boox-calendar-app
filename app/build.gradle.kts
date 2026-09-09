@@ -55,13 +55,14 @@ android {
 
     defaultConfig {
         applicationId = "com.weto.booxcal"
-        // BooxOS V4.2 en el Note Air 5C es Android 13 (SDK 33). 26 deja margen
-        // para dispositivos Onyx anteriores y da java.time nativo sin desugaring.
+        // The Note Air 5C runs Android 15 (SDK 35) with its current firmware.
+        // 26 leaves room for older Onyx devices and gives native java.time
+        // without desugaring.
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         // Sube versionCode en cada release publicada (ver docs/RELEASE.md).
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
 
         buildConfigField("String", "OAUTH_CLIENT_ID", "\"$oauthClientId\"")
         buildConfigField("String", "OAUTH_REDIRECT_SCHEME", "\"$oauthRedirectScheme\"")

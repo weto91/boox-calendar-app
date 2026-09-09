@@ -23,6 +23,8 @@ import com.weto.booxcal.util.MILLIS_PER_DAY
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import com.weto.booxcal.R
+import com.weto.booxcal.di.Graph
 
 private const val TAG = "SyncEngine"
 
@@ -41,8 +43,8 @@ data class SyncOutcome(
 
     fun summary(): String = buildString {
         append("↑$pushed ↓$pulled")
-        if (purged > 0) append(" · purgadas $purged")
-        if (conflicts.isNotEmpty()) append(" · ${conflicts.size} conflicto(s)")
+        if (purged > 0) append(Graph.appContext.getString(R.string.sync_summary_purged, purged))
+        if (conflicts.isNotEmpty()) append(Graph.appContext.getString(R.string.sync_summary_conflicts, conflicts.size))
         error?.let { append(" · $it") }
     }
 
@@ -346,7 +348,7 @@ class SyncEngine(
             if (local.dirty) {
                 // Borrado allí, editado aquí. La edición local es lo único que
                 // queda: se conserva y se volverá a crear en la próxima subida.
-                conflicts += "«${local.title}» se borró en el servidor pero tiene cambios locales"
+                conflicts += Graph.appContext.getString(R.string.sync_conflict_deleted_remotely, local.title)
                 syncMapDao.deleteAllForLocal(SyncEntityType.EVENT, local.id)
                 return false
             }
@@ -388,7 +390,7 @@ class SyncEngine(
         }
 
         if (local.dirty && local.updatedAt > remote.updatedAtMillis) {
-            conflicts += "«${local.title}»: se conserva la versión local, más reciente"
+            conflicts += Graph.appContext.getString(R.string.sync_conflict_local_kept, local.title)
             return false
         }
 
@@ -491,7 +493,7 @@ class SyncEngine(
         if (remote.deleted) {
             if (local == null) return false
             if (local.dirty) {
-                conflicts += "«${local.title}» se borró en el servidor pero tiene cambios locales"
+                conflicts += Graph.appContext.getString(R.string.sync_conflict_deleted_remotely, local.title)
                 syncMapDao.deleteAllForLocal(SyncEntityType.TASK, local.id)
                 return false
             }
@@ -536,7 +538,7 @@ class SyncEngine(
         }
 
         if (local.dirty && local.updatedAt > remote.updatedAtMillis) {
-            conflicts += "«${local.title}»: se conserva la versión local, más reciente"
+            conflicts += Graph.appContext.getString(R.string.sync_conflict_local_kept, local.title)
             return false
         }
 

@@ -15,6 +15,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import com.weto.booxcal.R
+import com.weto.booxcal.di.Graph
 
 sealed interface ModelState {
     data object Unknown : ModelState
@@ -60,7 +62,7 @@ class InkRecognizer {
             DigitalInkRecognitionModelIdentifier.fromLanguageTag(languageTag)
         } catch (t: Throwable) {
             null
-        } ?: return ModelState.Unavailable("ML Kit no reconoce el idioma '$languageTag'")
+        } ?: return ModelState.Unavailable(Graph.appContext.getString(R.string.ocr_language_unsupported, languageTag))
 
         val model = DigitalInkRecognitionModel.builder(identifier).build()
         val manager = RemoteModelManager.getInstance()
@@ -68,7 +70,7 @@ class InkRecognizer {
         return try {
             val downloaded = manager.isModelDownloaded(model).await()
             if (!downloaded) {
-                if (!allowDownload) return ModelState.Unavailable("Modelo no descargado")
+                if (!allowDownload) return ModelState.Unavailable(Graph.appContext.getString(R.string.ocr_model_missing))
                 manager.download(model, DownloadConditions.Builder().build()).await()
             }
             close()
@@ -79,7 +81,7 @@ class InkRecognizer {
             ModelState.Ready
         } catch (t: Throwable) {
             Log.w(TAG, "No se pudo preparar el modelo de $languageTag", t)
-            ModelState.Unavailable(t.message ?: "Fallo descargando el modelo")
+            ModelState.Unavailable(t.message ?: Graph.appContext.getString(R.string.ocr_download_failed))
         }
     }
 
@@ -142,6 +144,6 @@ internal suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { cont
     // cancelación de su corrutina: si no, el estado se quedaba en
     // "Reconociendo…" para siempre.
     addOnCanceledListener {
-        if (cont.isActive) cont.resumeWithException(IllegalStateException("Reconocimiento cancelado"))
+        if (cont.isActive) cont.resumeWithException(IllegalStateException(Graph.appContext.getString(R.string.ocr_cancelled)))
     }
 }

@@ -53,7 +53,6 @@ import com.weto.booxcal.ink.PenCanvasView
 import com.weto.booxcal.ink.PenDiagnostics
 import com.weto.booxcal.ink.PenMode
 import com.weto.booxcal.ink.PenTool
-import com.weto.booxcal.ink.SdkInk
 import com.weto.booxcal.ui.theme.Accent
 import com.weto.booxcal.ui.theme.ControlCorner
 import com.weto.booxcal.ui.theme.Eink
@@ -72,6 +71,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import com.weto.booxcal.R
+import androidx.annotation.StringRes
+import androidx.compose.ui.res.stringResource
 
 /** Mando a distancia del lienzo: la vista es imperativa, Compose no. */
 @Stable
@@ -239,37 +241,36 @@ suspend fun SettingsStore.saveInkTools(tools: InkTools) = setInkTools(
 )
 
 /** Un color de la paleta: su valor, su nombre y, en los cuatro «puros», las letras que llevan dentro. */
-data class InkColor(val argb: Int, val name: String, val label: String? = null)
+data class InkColor(val argb: Int, @StringRes val name: Int, val label: String? = null)
 
 /** La paleta del panel de Boox, tal cual, en sus dos filas. */
 val INK_COLORS: List<InkColor> = listOf(
-    InkColor(0xFF000000.toInt(), "Negro"),
-    InkColor(0xFF444444.toInt(), "Gris oscuro"),
-    InkColor(0xFF808080.toInt(), "Gris"),
-    InkColor(0xFFBBBBBB.toInt(), "Gris claro"),
-    InkColor(0xFFFFFFFF.toInt(), "Blanco", "WT"),
-    InkColor(0xFFFF6666.toInt(), "Rojo", "RD"),
-    InkColor(0xFF33AA55.toInt(), "Verde", "GN"),
-    InkColor(0xFF000080.toInt(), "Azul", "BU"),
-    InkColor(0xFF00FFFF.toInt(), "Cian"),
-    InkColor(0xFFFF00FF.toInt(), "Rosa"),
-    InkColor(0xFFFFA500.toInt(), "Naranja"),
-    InkColor(0xFFFFFF00.toInt(), "Amarillo"),
-    InkColor(0xFF008000.toInt(), "Verde oscuro"),
-    InkColor(0xFF8A4FBF.toInt(), "Morado"),
-    InkColor(0xFF2196F3.toInt(), "Azul claro"),
-    InkColor(0xFFFF4500.toInt(), "Rojo naranja"),
+    InkColor(0xFF000000.toInt(), R.string.color_black),
+    InkColor(0xFF444444.toInt(), R.string.color_dark_grey),
+    InkColor(0xFF808080.toInt(), R.string.color_grey),
+    InkColor(0xFFBBBBBB.toInt(), R.string.color_light_grey),
+    InkColor(0xFFFFFFFF.toInt(), R.string.color_white, "WT"),
+    InkColor(0xFFFF6666.toInt(), R.string.color_red, "RD"),
+    InkColor(0xFF33AA55.toInt(), R.string.color_green, "GN"),
+    InkColor(0xFF000080.toInt(), R.string.color_blue, "BU"),
+    InkColor(0xFF00FFFF.toInt(), R.string.color_cyan),
+    InkColor(0xFFFF00FF.toInt(), R.string.color_pink),
+    InkColor(0xFFFFA500.toInt(), R.string.color_orange),
+    InkColor(0xFFFFFF00.toInt(), R.string.color_yellow),
+    InkColor(0xFF008000.toInt(), R.string.color_dark_green),
+    InkColor(0xFF8A4FBF.toInt(), R.string.color_purple),
+    InkColor(0xFF2196F3.toInt(), R.string.color_light_blue),
+    InkColor(0xFFFF4500.toInt(), R.string.color_red_orange),
 )
 
-val INK_TIPS: List<Triple<PenTool, Glyph, String>> = listOf(
-    Triple(PenTool.PENCIL, Glyph.Pencil, "Lápiz"),
-    Triple(PenTool.BALLPOINT, Glyph.Ballpoint, "Bolígrafo"),
-    Triple(PenTool.MARKER, Glyph.Marker, "Subrayador"),
+/** The three tips: tool, icon and the resource of its name. */
+val INK_TIPS: List<Triple<PenTool, Glyph, Int>> = listOf(
+    Triple(PenTool.PENCIL, Glyph.Pencil, R.string.tip_pencil),
+    Triple(PenTool.BALLPOINT, Glyph.Ballpoint, R.string.tip_ballpoint),
+    Triple(PenTool.MARKER, Glyph.Marker, R.string.tip_marker),
 )
 
 private const val NOTICE_MILLIS = 2_500L
-/** Cada toque de ampliar o reducir. */
-private const val ZOOM_STEP = 1.25f
 private const val MIN_LETTERS_PER_STROKE = 0.35f
 
 /** Qué hacer con un texto reconocido a partir del lazo. */
@@ -322,7 +323,7 @@ class InkBoardState internal constructor(
             val results = recognizeWholeNote(languageTag, textTool) ?: return@launch
             controller.replaceWithTexts(results)
             revision++
-            if (results.isEmpty()) flashNotice("No se reconoció texto") else notice = null
+            if (results.isEmpty()) flashNotice(text(R.string.ink_no_text_recognized)) else notice = null
         }
     }
 
@@ -340,7 +341,7 @@ class InkBoardState internal constructor(
         scope.launch {
             val results = recognizeWholeNote(languageTag, textTool) ?: return@launch
             if (results.isEmpty()) {
-                flashNotice("No se reconoció texto")
+                flashNotice(text(R.string.ink_no_text_recognized))
                 return@launch
             }
             notice = null
@@ -369,15 +370,17 @@ class InkBoardState internal constructor(
         val lines = controller.textLines(onlyTool)
         if (lines.isEmpty()) {
             flashNotice(
-                when (textTool) {
-                    "pencil" -> "No hay nada escrito a lápiz"
-                    "ballpoint" -> "No hay nada escrito a bolígrafo"
-                    else -> "No hay escritura que convertir"
-                }
+                text(
+                    when (textTool) {
+                        "pencil" -> R.string.ink_nothing_pencil
+                        "ballpoint" -> R.string.ink_nothing_ballpoint
+                        else -> R.string.ink_nothing_to_convert
+                    }
+                )
             )
             return null
         }
-        notice = "Preparando el reconocedor…"
+        notice = text(R.string.ink_preparing_recognizer)
         val model = Graph.inkRecognizer.prepare(languageTag)
         if (model is ModelState.Unavailable) {
             flashNotice(model.reason)
@@ -385,7 +388,7 @@ class InkBoardState internal constructor(
         }
         val results = mutableListOf<Pair<PenCanvasView.TextLine, String>>()
         lines.forEachIndexed { index, line ->
-            notice = "Reconociendo ${index + 1} de ${lines.size}…"
+            notice = text(R.string.ink_recognizing_n_of_m, index + 1, lines.size)
             val text = Graph.inkRecognizer.recognize(controller.lineDocument(line))
                 .getOrNull()?.firstOrNull()
             // Sin letras ni números no era escritura: se deja el trazo. Y
@@ -405,6 +408,8 @@ class InkBoardState internal constructor(
         delay(NOTICE_MILLIS)
         if (notice == text) notice = null
     }
+
+    private fun text(@StringRes id: Int, vararg args: Any): String = Graph.appContext.getString(id, *args)
 
     /**
      * Sube solo cuando hay que volver a cargar el lienzo desde el cuaderno:
@@ -457,7 +462,7 @@ class InkBoardState internal constructor(
         if (target < 0) return
         val committed = commitPage()
         val grown =
-            if (target >= committed.pageCount) committed.withPage(target, InkDocument.EMPTY)
+            if (target >= committed.pageCount) committed.withPage(target, committed.newPage())
             else committed
         notebook = grown
         page = target
@@ -608,37 +613,37 @@ private fun SelectionBar(state: InkBoardState) {
             .padding(horizontal = 6.dp, vertical = 4.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SelectionAction(Glyph.Today, "Evento", Accent.Event) { recognizeFor(InkTextTarget.EVENT) }
-            SelectionAction(Glyph.Bell, "Recordar", Accent.Reminder) { recognizeFor(InkTextTarget.REMINDER) }
-            SelectionAction(Glyph.Note, "A texto", Accent.Search) { recognizeFor(InkTextTarget.NOTE) }
+            SelectionAction(Glyph.Today, stringResource(R.string.ink_action_event), Accent.Event) { recognizeFor(InkTextTarget.EVENT) }
+            SelectionAction(Glyph.Bell, stringResource(R.string.ink_action_remind), Accent.Reminder) { recognizeFor(InkTextTarget.REMINDER) }
+            SelectionAction(Glyph.Note, stringResource(R.string.ink_action_to_text), Accent.Search) { recognizeFor(InkTextTarget.NOTE) }
             Spacer(Modifier.weight(1f))
-            SelectionAction(Glyph.Copy, "Copiar", null) { state.controller.copySelection() }
-            SelectionAction(Glyph.Cut, "Cortar", null) {
+            SelectionAction(Glyph.Copy, stringResource(R.string.ink_action_copy), null) { state.controller.copySelection() }
+            SelectionAction(Glyph.Cut, stringResource(R.string.ink_action_cut), null) {
                 state.controller.cutSelection()
                 state.revision++
             }
-            SelectionAction(Glyph.Trash, "Borrar", Accent.Today) {
+            SelectionAction(Glyph.Trash, stringResource(R.string.common_delete), Accent.Today) {
                 state.controller.deleteSelection()
                 state.revision++
             }
             EinkIconButton(
                 glyph = Glyph.Check,
                 onClick = { state.controller.clearSelection() },
-                contentDescription = "Quitar la selección",
+                contentDescription = stringResource(R.string.ink_clear_selection),
                 box = 44.dp,
             )
         }
 
         when (val result = ocr.state) {
-            OcrState.Idle -> EinkHint("Arrastra dentro del recuadro para mover lo seleccionado.")
-            OcrState.Preparing, OcrState.Running -> EinkHint("Reconociendo…")
+            OcrState.Idle -> EinkHint(stringResource(R.string.ink_selection_hint))
+            OcrState.Preparing, OcrState.Running -> EinkHint(stringResource(R.string.ink_recognizing))
             is OcrState.Failed -> EinkHint(result.reason)
             is OcrState.Ready -> Row(
                 Modifier.padding(top = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                EinkHint("Elige:")
+                EinkHint(stringResource(R.string.ink_choose))
                 result.candidates.take(3).forEach { candidate ->
                     EinkButton(candidate, {
                         val kind = target
@@ -701,7 +706,7 @@ private fun NoteActionsMenu(
         EinkIconButton(
             glyph = Glyph.Note,
             onClick = { open = true },
-            contentDescription = "Acciones con la nota",
+            contentDescription = stringResource(R.string.ink_note_actions),
             enabled = enabled,
             selected = open,
             size = glyphSize,
@@ -735,8 +740,8 @@ private fun NoteActionsMenu(
                             MenuAction(
                                 glyph = Glyph.Note,
                                 accent = Accent.Search,
-                                label = "Toda la nota a texto",
-                                hint = "Sustituye lo escrito por texto; los dibujos se quedan.",
+                                label = stringResource(R.string.ink_whole_note_to_text),
+                                hint = stringResource(R.string.ink_whole_note_to_text_hint),
                                 onClick = { open = false; onConvert() },
                             )
                             EinkDivider(Modifier.padding(horizontal = 12.dp))
@@ -744,16 +749,16 @@ private fun NoteActionsMenu(
                         MenuAction(
                             glyph = Glyph.Today,
                             accent = Accent.Event,
-                            label = "Crear un evento",
-                            hint = "Con lo que pone en la nota como título.",
+                            label = stringResource(R.string.ink_create_event),
+                            hint = stringResource(R.string.ink_create_hint),
                             onClick = { open = false; onCreate(InkTextTarget.EVENT) },
                         )
                         EinkDivider(Modifier.padding(horizontal = 12.dp))
                         MenuAction(
                             glyph = Glyph.Bell,
                             accent = Accent.Reminder,
-                            label = "Crear un recordatorio",
-                            hint = "Con lo que pone en la nota como título.",
+                            label = stringResource(R.string.ink_create_reminder),
+                            hint = stringResource(R.string.ink_create_hint),
                             onClick = { open = false; onCreate(InkTextTarget.REMINDER) },
                         )
                     }
@@ -827,33 +832,9 @@ fun InkToolbar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.End,
     ) {
-        if (readOnly) EinkHint("Solo lectura", Modifier.padding(end = 8.dp))
-        // Zoom: más, menos, y volver al tamaño de la hoja. En todas las notas:
-        // la hoja es vectorial y ampliada no pierde nada. El pellizco con dos
-        // dedos hace lo mismo.
-        run {
-            EinkIconButton(
-                glyph = Glyph.Minus,
-                onClick = { state.controller.zoomBy(1f / ZOOM_STEP) },
-                contentDescription = "Reducir",
-                size = glyph,
-                box = box,
-            )
-            EinkIconButton(
-                glyph = Glyph.Plus,
-                onClick = { state.controller.zoomBy(ZOOM_STEP) },
-                contentDescription = "Ampliar",
-                size = glyph,
-                box = box,
-            )
-            EinkIconButton(
-                glyph = Glyph.GridDay,
-                onClick = { state.controller.resetZoom() },
-                contentDescription = "Tamaño de la hoja",
-                size = glyph,
-                box = box,
-            )
-        }
+        if (readOnly) EinkHint(stringResource(R.string.ink_read_only), Modifier.padding(end = 8.dp))
+        // Zoom is by pinching with two fingers; the sheet is vectorial and
+        // loses nothing enlarged.
         if (!readOnly) Box {
             EinkIconButton(
                 glyph = Glyph.Pen,
@@ -861,7 +842,7 @@ fun InkToolbar(
                     if (drawing) options = true
                     else state.tools = state.tools.withTool(state.tools.lastDrawing)
                 },
-                contentDescription = "Pluma",
+                contentDescription = stringResource(R.string.ink_pen),
                 selected = drawing,
                 accent = Color(state.tools.activeColorArgb),
                 size = glyph,
@@ -877,15 +858,13 @@ fun InkToolbar(
                         Graph.applicationScope.launch { Graph.settings.saveInkTools(updated) }
                     },
                     onDismiss = { options = false },
-                    footnote = "Trazo: ${state.diagnostics.engine} · estilo del SDK: " +
-                        SdkInk.styleName(SdkInk.styleFor(state.tools.lastDrawing, state.tools.pencilTexture, state.tools.pressure / 100f)),
                 )
             }
         }
         if (!readOnly) EinkIconButton(
             glyph = Glyph.Eraser,
             onClick = { state.tools = state.tools.withTool(PenTool.ERASER) },
-            contentDescription = "Borrador",
+            contentDescription = stringResource(R.string.ink_eraser),
             selected = state.tools.tool == PenTool.ERASER,
             size = glyph,
             box = box,
@@ -896,7 +875,7 @@ fun InkToolbar(
                 state.controller.clearSelection()
                 state.tools = state.tools.withTool(PenTool.LASSO)
             },
-            contentDescription = "Selección inteligente",
+            contentDescription = stringResource(R.string.ink_lasso),
             selected = state.tools.tool == PenTool.LASSO,
             size = glyph,
             box = box,
@@ -904,7 +883,7 @@ fun InkToolbar(
         if (!readOnly) EinkIconButton(
             glyph = Glyph.Undo,
             onClick = { state.controller.undo(); state.revision++ },
-            contentDescription = "Deshacer",
+            contentDescription = stringResource(R.string.ink_undo),
             enabled = state.revision.let { state.controller.canUndo() },
             size = glyph,
             box = box,
@@ -912,7 +891,7 @@ fun InkToolbar(
         if (!readOnly) EinkIconButton(
             glyph = Glyph.Redo,
             onClick = { state.controller.redo(); state.revision++ },
-            contentDescription = "Rehacer",
+            contentDescription = stringResource(R.string.ink_redo),
             enabled = state.revision.let { state.controller.canRedo() },
             size = glyph,
             box = box,
@@ -935,7 +914,7 @@ fun InkToolbar(
             EinkIconButton(
                 glyph = Glyph.NewSheet,
                 onClick = onNewSheet,
-                contentDescription = "Hoja nueva",
+                contentDescription = stringResource(R.string.common_new_sheet),
                 size = glyph,
                 box = box,
             )
@@ -943,7 +922,7 @@ fun InkToolbar(
         if (!readOnly) EinkIconButton(
             glyph = Glyph.Trash,
             onClick = { state.controller.clear(); state.revision++ },
-            contentDescription = if (onNewSheet != null) "Borrar la nota" else "Borrar la página",
+            contentDescription = stringResource(if (onNewSheet != null) R.string.ink_clear_note else R.string.ink_clear_page),
             size = glyph,
             box = box,
         )
@@ -951,7 +930,7 @@ fun InkToolbar(
             EinkIconButton(
                 glyph = Glyph.Paste,
                 onClick = { state.controller.paste(); state.revision++ },
-                contentDescription = "Pegar",
+                contentDescription = stringResource(R.string.ink_paste),
                 size = glyph,
                 box = box,
             )
@@ -961,7 +940,7 @@ fun InkToolbar(
             EinkIconButton(
                 glyph = Glyph.ChevronLeft,
                 onClick = { state.goToPage(state.page - 1) },
-                contentDescription = "Página anterior",
+                contentDescription = stringResource(R.string.ink_previous_page),
                 enabled = state.page > 0,
                 size = glyph,
                 box = box,
@@ -976,7 +955,7 @@ fun InkToolbar(
                 glyph = Glyph.ChevronRight,
                 onClick = { state.goToPage(state.page + 1) },
                 contentDescription =
-                    if (state.page == state.pageCount - 1) "Página nueva" else "Página siguiente",
+                    stringResource(if (state.page == state.pageCount - 1) R.string.ink_new_page else R.string.ink_next_page),
                 // En solo lectura no se añaden páginas: se pasa hasta la última.
                 enabled = !readOnly || state.page < state.pageCount - 1,
                 size = glyph,
@@ -1046,7 +1025,7 @@ fun InkCaptureSheet(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            EinkIconButton(Glyph.ChevronLeft, onCancel, contentDescription = "Descartar")
+            EinkIconButton(Glyph.ChevronLeft, onCancel, contentDescription = stringResource(R.string.ink_discard))
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleLarge,
@@ -1056,13 +1035,13 @@ fun InkCaptureSheet(
             EinkIconButton(
                 glyph = Glyph.Check,
                 onClick = { onConfirm(notebook.page(0), acceptedText) },
-                contentDescription = "Guardar la nota",
+                contentDescription = stringResource(R.string.ink_save_note),
                 accent = Accent.Search,
             )
         }
 
         if (acceptedText != null) {
-            EinkHint("Texto reconocido: \"$acceptedText\" (irá al título)", Modifier.padding(bottom = 4.dp))
+            EinkHint(stringResource(R.string.ink_recognized_title, acceptedText.orEmpty()), Modifier.padding(bottom = 4.dp))
         }
         EinkDivider()
 
@@ -1096,7 +1075,7 @@ class InkOcrController(
 
     fun recognize(languageTag: String, document: InkDocument) {
         if (document.isEmpty) {
-            state = OcrState.Failed("No hay nada escrito")
+            state = OcrState.Failed(Graph.appContext.getString(R.string.ink_nothing_written))
             return
         }
         scope.launch {
@@ -1112,12 +1091,12 @@ class InkOcrController(
             recognizer.recognize(document)
                 .onSuccess { candidates ->
                     state = if (candidates.isEmpty()) {
-                        OcrState.Failed("No se reconoció texto")
+                        OcrState.Failed(Graph.appContext.getString(R.string.ink_no_text_recognized))
                     } else {
                         OcrState.Ready(candidates)
                     }
                 }
-                .onFailure { state = OcrState.Failed(it.message ?: "Fallo del reconocedor") }
+                .onFailure { state = OcrState.Failed(it.message ?: Graph.appContext.getString(R.string.ink_recognizer_failed)) }
         }
     }
 

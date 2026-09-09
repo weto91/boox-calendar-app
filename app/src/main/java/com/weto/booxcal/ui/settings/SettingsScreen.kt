@@ -1,7 +1,11 @@
 package com.weto.booxcal.ui.settings
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -12,7 +16,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -28,11 +32,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,6 +49,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.weto.booxcal.AppLinks
 import com.weto.booxcal.BuildConfig
+import com.weto.booxcal.R
 import com.weto.booxcal.data.settings.AppSettings
 import com.weto.booxcal.ink.EinkRefresh
 import com.weto.booxcal.ink.InkFonts
@@ -55,24 +62,28 @@ import com.weto.booxcal.ui.theme.EinkCard
 import com.weto.booxcal.ui.theme.EinkCardHeader
 import com.weto.booxcal.ui.theme.EinkCheckbox
 import com.weto.booxcal.ui.theme.EinkDivider
-import com.weto.booxcal.ui.theme.EinkDialog
+import com.weto.booxcal.ui.theme.EinkGlyph
 import com.weto.booxcal.ui.theme.EinkHint
 import com.weto.booxcal.ui.theme.EinkIconButton
 import com.weto.booxcal.ui.theme.EinkTile
 import com.weto.booxcal.ui.theme.Glyph
+import com.weto.booxcal.ui.theme.HairlineWidth
 import com.weto.booxcal.ui.theme.einkClickable
+import com.weto.booxcal.ui.theme.relativeTime
+import com.weto.booxcal.util.AppLocale
+import com.weto.booxcal.util.rememberLocale
 import java.time.DayOfWeek
 import java.time.format.TextStyle as JavaTextStyle
-import java.util.Locale
 
 private val SYNC_INTERVALS = listOf(15, 30, 60, 180)
 
 /**
- * Ajustes: tarjetas en dos columnas, como la portada.
+ * Settings: cards in two columns, like the home screen.
  *
- * Cada tarjeta es un tema (cuenta, calendario, sincronización, tareas,
- * escritura) con sus filas: rótulo a la izquierda, control a la derecha, y la
- * explicación debajo solo cuando hace falta. Nada de listas sueltas.
+ * Each card is a topic (account, calendar, defaults, sync, language,
+ * handwriting, Drive, completed tasks) with its rows: a label and its
+ * control. Explanations are kept to the minimum: a control that needs a
+ * paragraph is a control that is badly named.
  */
 @Composable
 fun SettingsScreen(
@@ -85,7 +96,7 @@ fun SettingsScreen(
     LaunchedEffect(Unit) { EinkRefresh.fullRefresh(view) }
 
     val context = LocalContext.current
-    // Al volver del navegador la cuenta puede haber cambiado de estado.
+    // Coming back from the browser the account may have changed state.
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -100,9 +111,9 @@ fun SettingsScreen(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            EinkIconButton(Glyph.ChevronLeft, onBack, contentDescription = "Volver")
+            EinkIconButton(Glyph.ChevronLeft, onBack, contentDescription = stringResource(R.string.common_back))
             Text(
-                text = "Ajustes",
+                text = stringResource(R.string.common_settings),
                 style = MaterialTheme.typography.headlineSmall,
                 color = Eink.Black,
                 modifier = Modifier.padding(start = 6.dp),
@@ -121,43 +132,44 @@ fun SettingsScreen(
                 Notice(message, onDismiss = viewModel::clearMessage)
             }
 
+            val browserOpened = stringResource(R.string.settings_browser_opened)
+            val noBrowser = stringResource(R.string.settings_no_browser)
+            val connectFailed = stringResource(R.string.settings_connect_failed)
             AccountCard(
                 state = state,
                 onConnect = {
                     viewModel.authorizationIntent()
-                        .onFailure { viewModel.showMessage("No se pudo preparar la conexión: $it") }
+                        .onFailure { viewModel.showMessage(connectFailed) }
                         .onSuccess { intent ->
                             runCatching { context.startActivity(intent) }
-                                .onFailure { viewModel.showMessage("No hay navegador: $it") }
-                                .onSuccess { viewModel.showMessage("Se ha abierto el navegador. Vuelve aquí al terminar.") }
+                                .onFailure { viewModel.showMessage(noBrowser) }
+                                .onSuccess { viewModel.showMessage(browserOpened) }
                         }
                 },
                 onSyncNow = viewModel::syncNow,
                 onSignOut = viewModel::signOut,
-                packageName = context.packageName,
             )
 
             if (!state.settings.powerWarningAcknowledged) {
                 PowerWarningCard(onAcknowledge = viewModel::acknowledgePowerWarning)
             }
 
-            // Dos columnas con las tarjetas repartidas para que midan parecido.
-            // Ninguna se estira para igualar a la otra: una tarjeta hinchada
-            // con hueco dentro se veía peor que un dedo de diferencia abajo.
+            // Two columns with the cards shared out so they measure alike.
+            // None is stretched to match the other: a padded card with a gap
+            // inside looked worse than a finger of difference at the bottom.
             Row(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalAlignment = Alignment.Top,
             ) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SettingsCard("Calendario") {
-                        SettingRow(
-                            label = "La semana empieza en",
-                        ) {
+                    val locale = rememberLocale()
+                    SettingsCard(stringResource(R.string.common_calendar)) {
+                        SettingRow(label = stringResource(R.string.settings_week_starts)) {
                             ChoiceRow(
                                 options = listOf(DayOfWeek.MONDAY, DayOfWeek.SUNDAY, DayOfWeek.SATURDAY).map { day ->
-                                    day to day.getDisplayName(JavaTextStyle.FULL, Locale.getDefault())
-                                        .replaceFirstChar { it.titlecase(Locale.getDefault()) }
+                                    day to day.getDisplayName(JavaTextStyle.FULL, locale)
+                                        .replaceFirstChar { it.titlecase(locale) }
                                 },
                                 selected = state.settings.weekStart,
                                 onSelect = viewModel::setWeekStart,
@@ -165,24 +177,17 @@ fun SettingsScreen(
                         }
                         EinkDivider()
                         ToggleRow(
-                            label = "Recordatorios en el calendario",
-                            hint = "Los recordatorios con fecha salen en el mes, la semana y el día.",
+                            label = stringResource(R.string.settings_reminders_in_calendar),
                             checked = state.settings.showTasksInCalendar,
                             onCheckedChange = viewModel::setShowTasksInCalendar,
                         )
                         EinkDivider()
-                        SettingRow(
-                            label = "Barra superior (hora y batería)",
-                            hint = "«De la app»: se oculta la de Android y la app pone la suya; " +
-                                "deslizar desde arriba trae la de Android un momento. " +
-                                "«Automática»: la de la app solo si el sistema esconde la de " +
-                                "Android. «Del sistema»: solo la de Android, negra con iconos claros.",
-                        ) {
+                        SettingRow(label = stringResource(R.string.settings_status_bar)) {
                             ChoiceRow(
                                 options = listOf(
-                                    "app" to "De la app",
-                                    "auto" to "Automática",
-                                    "system" to "Del sistema",
+                                    "app" to stringResource(R.string.settings_status_bar_app),
+                                    "auto" to stringResource(R.string.settings_status_bar_auto),
+                                    "system" to stringResource(R.string.settings_status_bar_system),
                                 ),
                                 selected = state.settings.statusStrip,
                                 onSelect = viewModel::setStatusStrip,
@@ -196,16 +201,15 @@ fun SettingsScreen(
                         onTaskList = viewModel::setDefaultTaskList,
                     )
 
-                    SettingsCard("Sincronización") {
-                        SettingRow(
-                            label = "Cada",
-                            hint = "Quince minutos es el mínimo que permite Android. Lo que cambia " +
-                                "en Google llega a la tablet con esta cadencia; lo que cambia " +
-                                "aquí sube en cuanto se hace.",
-                        ) {
+                    SettingsCard(stringResource(R.string.settings_sync)) {
+                        SettingRow(label = stringResource(R.string.settings_sync_every)) {
                             ChoiceRow(
                                 options = SYNC_INTERVALS.map { minutes ->
-                                    minutes to if (minutes < 60) "$minutes min" else "${minutes / 60} h"
+                                    minutes to if (minutes < 60) {
+                                        stringResource(R.string.duration_minutes, minutes)
+                                    } else {
+                                        stringResource(R.string.duration_hours, minutes / 60)
+                                    }
                                 },
                                 selected = state.settings.syncIntervalMinutes,
                                 onSelect = viewModel::setSyncInterval,
@@ -213,73 +217,53 @@ fun SettingsScreen(
                         }
                     }
 
+                    LanguageCard(current = state.language, onSelect = { tag ->
+                        viewModel.setLanguage(tag)
+                        // Before Android 13 nothing recreates the screen for us.
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) context.findActivity()?.recreate()
+                    })
                 }
 
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    SettingsCard("Escritura a mano") {
-                        SettingRow(
-                            label = "Reconocimiento de texto",
-                            hint = "Modelo del idioma «${state.settings.ocrLanguageTag}». Funciona " +
-                                "sin red una vez descargado. Es lo que usa «A texto» y la " +
-                                "creación de eventos desde el lazo.",
-                        ) {
+                    SettingsCard(stringResource(R.string.settings_handwriting)) {
+                        SettingRow(label = stringResource(R.string.settings_text_recognition)) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                             ) {
                                 val status = when (val model = state.ocrModel) {
-                                    ModelState.Ready -> "Descargado"
-                                    ModelState.Downloading -> "Descargando…"
+                                    ModelState.Ready -> stringResource(R.string.settings_model_downloaded)
+                                    ModelState.Downloading -> stringResource(R.string.settings_model_downloading)
                                     is ModelState.Unavailable -> model.reason
                                     ModelState.Unknown -> null
                                 }
                                 status?.let { EinkHint(it) }
                                 EinkButton(
-                                    label = if (state.ocrModel == ModelState.Ready) "Comprobar" else "Descargar",
+                                    label = stringResource(
+                                        if (state.ocrModel == ModelState.Ready) R.string.settings_model_check else R.string.settings_model_download
+                                    ),
                                     onClick = viewModel::downloadOcrModel,
                                     enabled = state.ocrModel != ModelState.Downloading,
                                 )
                             }
                         }
                         EinkDivider()
-                        SettingRow(
-                            label = "«Toda la nota a texto» convierte lo escrito con",
-                            hint = "Con lápiz o bolígrafo, lo hecho con la otra punta se queda " +
-                                "como dibujo, sin adivinar nada. Con «cualquiera» la app decide " +
-                                "por la forma qué es dibujo, y a veces se equivoca.",
-                        ) {
+                        SettingRow(label = stringResource(R.string.settings_text_tool)) {
                             ChoiceRow(
                                 options = listOf(
-                                    "pencil" to "Lápiz",
-                                    "ballpoint" to "Bolígrafo",
-                                    "any" to "Cualquiera",
+                                    "pencil" to stringResource(R.string.tip_pencil),
+                                    "ballpoint" to stringResource(R.string.tip_ballpoint),
+                                    "any" to stringResource(R.string.settings_text_tool_any),
                                 ),
                                 selected = state.settings.inkTextTool,
                                 onSelect = viewModel::setInkTextTool,
                             )
                         }
                         EinkDivider()
-                        SettingRow(
-                            label = "Letra del texto transcrito",
-                            hint = "La que usan «A texto» y «toda la nota a texto». Cambiarla " +
-                                "cambia también el texto ya convertido.",
-                        ) {
+                        SettingRow(label = stringResource(R.string.settings_text_font)) {
                             FontChoices(
                                 selected = state.settings.inkTextFont,
                                 onSelect = viewModel::setInkTextFont,
-                            )
-                        }
-                        EinkDivider()
-                        Text(
-                            text = "Solo escribe el lápiz; con el dedo se pulsan botones. Grosor, " +
-                                "color y punta se eligen tocando la pluma sobre el cuaderno.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Eink.Graphite,
-                        )
-                        if (!EinkRefresh.isOnyxDevice) {
-                            EinkHint(
-                                "Este dispositivo no es un Onyx: se usa la captura táctil normal, " +
-                                    "con el retardo habitual de Android."
                             )
                         }
                     }
@@ -291,18 +275,14 @@ fun SettingsScreen(
                         onSyncNow = viewModel::syncNotesNow,
                     )
 
-                    SettingsCard("Tareas completadas") {
-                        SettingRow(
-                            label = "Ocultar pasados",
-                            hint = "Se cuenta desde que se completó o desde que vencía, lo que " +
-                                "sea más tarde. No se borra nada: la tarea sigue en Google.",
-                        ) {
+                    SettingsCard(stringResource(R.string.settings_completed_tasks)) {
+                        SettingRow(label = stringResource(R.string.settings_hide_after)) {
                             ChoiceRow(
                                 options = RETENTION_CHOICES.map { days ->
                                     days to when {
-                                        days == AppSettings.NEVER_PURGE -> "Nunca"
-                                        days >= 365 -> "1 año"
-                                        else -> "$days d"
+                                        days == AppSettings.NEVER_PURGE -> stringResource(R.string.settings_never)
+                                        days >= 365 -> stringResource(R.string.settings_one_year)
+                                        else -> stringResource(R.string.settings_days_short, days)
                                     }
                                 },
                                 selected = state.settings.retentionDays,
@@ -313,18 +293,19 @@ fun SettingsScreen(
                 }
             }
 
+            val noBrowserFor = stringResource(R.string.settings_no_browser)
             AboutCard(onOpen = { url ->
                 runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
-                    .onFailure { viewModel.showMessage("No hay navegador para abrir $url") }
+                    .onFailure { viewModel.showMessage(noBrowserFor) }
             })
 
-            // Firma al pie: dos puntos más que el texto pequeño (11 → 13), en
-            // negrita, y el nombre además en cursiva.
+            // Signature at the foot: two points larger than small text, bold,
+            // the name in italics as well.
             Text(
                 text = buildAnnotatedString {
-                    append("Boox Calendar By ")
+                    append("Boox Calendar by ")
                     withStyle(SpanStyle(fontStyle = FontStyle.Italic)) { append("Álvaro Rubio Adán") }
-                    append(" · versión ${BuildConfig.VERSION_NAME}")
+                    append(" · ${stringResource(R.string.settings_version, BuildConfig.VERSION_NAME)}")
                 },
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 13.sp, lineHeight = 18.sp),
                 fontWeight = FontWeight.Bold,
@@ -336,7 +317,16 @@ fun SettingsScreen(
     }
 }
 
-// --- Cuenta -----------------------------------------------------------------
+private fun Context.findActivity(): Activity? {
+    var current: Context? = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return null
+}
+
+// --- Account -----------------------------------------------------------------
 
 @Composable
 private fun AccountCard(
@@ -344,17 +334,13 @@ private fun AccountCard(
     onConnect: () -> Unit,
     onSyncNow: () -> Unit,
     onSignOut: () -> Unit,
-    packageName: String,
 ) {
-    SettingsCard("Cuenta de Google") {
+    SettingsCard(stringResource(R.string.settings_google_account)) {
         when {
-            !state.oauthConfigured -> EinkHint(
-                "Falta el client ID de OAuth. Añade GOOGLE_OAUTH_CLIENT_ID a " +
-                    "local.properties y vuelve a compilar. Ver docs/SETUP_GOOGLE.md."
-            )
+            !state.oauthConfigured -> EinkHint(stringResource(R.string.settings_oauth_missing))
 
             state.authorized -> {
-                // Una sola fila: cuenta, estado y los dos botones al final.
+                // One row: account, state and the two buttons at the end.
                 Row(
                     Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -363,72 +349,51 @@ private fun AccountCard(
                     EinkTile(Glyph.Mail, Accent.Account, size = 40.dp)
                     Column(Modifier.weight(1f).padding(start = 4.dp)) {
                         Text(
-                            text = state.accountEmail ?: "Cuenta conectada",
+                            text = state.accountEmail ?: stringResource(R.string.settings_account_connected),
                             style = MaterialTheme.typography.titleMedium,
                             color = Eink.Black,
                         )
-                        // Sin botón de conectar: una vez dado el permiso, la app
-                        // se sincroniza sola. Lo único que hace falta saber es
-                        // si va o no va.
+                        // No connect button: once the permission is given the
+                        // app syncs by itself. All that matters is whether it works.
                         Text(
-                            text = state.syncStatus,
+                            text = syncStatusText(state),
                             style = MaterialTheme.typography.bodyMedium,
                             color = Eink.Graphite,
                         )
                     }
-                    EinkButton("Desconectar", onSignOut)
-                    EinkButton("Sincronizar ahora", onSyncNow, enabled = !state.syncing, emphasized = true)
+                    EinkButton(stringResource(R.string.settings_disconnect), onSignOut)
+                    EinkButton(stringResource(R.string.settings_sync_now), onSyncNow, enabled = !state.syncing, emphasized = true)
                 }
             }
 
             else -> {
                 Text(
-                    "Conecta tu cuenta una sola vez",
+                    stringResource(R.string.settings_connect_title),
                     style = MaterialTheme.typography.titleMedium,
                     color = Eink.Black,
                 )
-                // Paso a paso, porque "algo en un navegador" no le dice nada a
-                // quien no lo ha hecho nunca.
-                listOf(
-                    "Solo la primera vez, en Google Cloud → Credenciales → tu cliente " +
-                        "Android → Configuración avanzada: activa «Habilitar esquema " +
-                        "de URI personalizado» y guarda. Sin eso Google responde " +
-                        "«Error 400: invalid_request».",
-                    "Pulsa «Conectar». Se abre el navegador de la tablet.",
-                    "Elige tu cuenta de Google y escribe tu contraseña si la pide.",
-                    "Si sale «Google no ha verificado esta aplicación», pulsa " +
-                        "«Configuración avanzada» y luego «Ir a Calendario».",
-                    "Marca los permisos de Calendario y Tareas y pulsa «Continuar».",
-                    "El navegador vuelve aquí solo. A partir de ahí se sincroniza sola.",
-                ).forEachIndexed { index, step ->
-                    Row(verticalAlignment = Alignment.Top) {
-                        Text(
-                            "${index + 1}.",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = Eink.Black,
-                            modifier = Modifier.width(26.dp),
-                        )
-                        Text(step, style = MaterialTheme.typography.bodyLarge, color = Eink.Black)
-                    }
-                }
+                Text(
+                    stringResource(R.string.settings_connect_hint),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Eink.Graphite,
+                )
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.End,
                 ) {
-                    EinkButton("Conectar mi cuenta de Google", onConnect, emphasized = true)
+                    EinkButton(stringResource(R.string.settings_connect_button), onConnect, emphasized = true)
                 }
-                EinkDivider()
-                // Lo que la app manda a Google, para cotejarlo con la consola
-                // cuando responde «invalid_request».
-                Text("Datos para la consola de Google", style = MaterialTheme.typography.labelMedium, color = Eink.Graphite)
-                EinkHint(
-                    "Cliente: ${BuildConfig.OAUTH_CLIENT_ID}\n" +
-                        "Redirección: ${BuildConfig.OAUTH_REDIRECT_SCHEME}:/oauth2redirect\n" +
-                        "Paquete: $packageName"
-                )
             }
         }
     }
+}
+
+@Composable
+private fun syncStatusText(state: SettingsUiState): String = when {
+    state.syncing -> stringResource(R.string.sync_status_syncing)
+    state.settings.lastSyncError != null -> stringResource(R.string.common_not_synced, state.settings.lastSyncError)
+    state.settings.lastSyncAt > 0 -> stringResource(R.string.sync_status_synced, relativeTime(state.settings.lastSyncAt))
+    else -> stringResource(R.string.sync_status_never)
 }
 
 @Composable
@@ -442,26 +407,24 @@ private fun PowerWarningCard(onAcknowledge: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            text = "Excluye esta app de la optimización de energía",
+            text = stringResource(R.string.settings_power_title),
             style = MaterialTheme.typography.titleMedium,
             color = Eink.Black,
         )
         Text(
-            text = "Ajustes del sistema → Energía → Optimización de apps → desactiva la " +
-                "optimización para «Boox Calendar». Si no, BooxOS matará la sincronización " +
-                "en segundo plano y parecerá que la app no funciona.",
+            text = stringResource(R.string.settings_power_text),
             style = MaterialTheme.typography.bodyMedium,
             color = Eink.Graphite,
         )
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            EinkButton("Entendido", onAcknowledge)
+            EinkButton(stringResource(R.string.settings_understood), onAcknowledge)
         }
     }
 }
 
 /**
- * Con qué calendario y qué lista se abre el formulario de crear. Es solo el
- * valor inicial: en el propio formulario se puede cambiar cada vez.
+ * Which calendar and which list the creation form opens with. Only the
+ * initial value: in the form itself it can be changed every time.
  */
 @Composable
 private fun DefaultsCard(
@@ -471,24 +434,18 @@ private fun DefaultsCard(
 ) {
     val calendars = state.calendars.filter { it.isWritable }
     val lists = state.taskLists
-    SettingsCard("Al crear, por defecto") {
-        SettingRow(
-            label = "Calendario del evento nuevo",
-            hint = if (calendars.isEmpty()) "Aún no hay calendarios: llegan con la primera sincronización." else null,
-        ) {
-            ChoiceGrid(
-                options = listOf(0L to "El principal") + calendars.map { it.id to it.name },
+    SettingsCard(stringResource(R.string.settings_defaults)) {
+        SettingRow(label = stringResource(R.string.settings_default_calendar)) {
+            ChoiceList(
+                options = listOf(0L to stringResource(R.string.settings_primary_calendar)) + calendars.map { it.id to it.name },
                 selected = state.settings.defaultCalendarId,
                 onSelect = onCalendar,
             )
         }
         EinkDivider()
-        SettingRow(
-            label = "Lista del recordatorio nuevo",
-            hint = if (lists.isEmpty()) "Aún no hay listas: llegan con la primera sincronización." else null,
-        ) {
-            ChoiceGrid(
-                options = listOf(0L to "La primera") + lists.map { it.id to it.name },
+        SettingRow(label = stringResource(R.string.settings_default_list)) {
+            ChoiceList(
+                options = listOf(0L to stringResource(R.string.settings_first_list)) + lists.map { it.id to it.name },
                 selected = state.settings.defaultTaskListId,
                 onSelect = onTaskList,
             )
@@ -496,35 +453,46 @@ private fun DefaultsCard(
     }
 }
 
-/** Versión, y los enlaces que Google quiere ver desde la app: privacidad y código. */
+/** The language of the app: the device's, Spanish or English. */
+@Composable
+private fun LanguageCard(current: String, onSelect: (String) -> Unit) {
+    SettingsCard(stringResource(R.string.settings_language)) {
+        ChoiceRow(
+            options = listOf(
+                AppLocale.SYSTEM to stringResource(R.string.settings_language_system),
+                AppLocale.SPANISH to stringResource(R.string.settings_language_spanish),
+                AppLocale.ENGLISH to stringResource(R.string.settings_language_english),
+            ),
+            selected = current,
+            onSelect = onSelect,
+        )
+    }
+}
+
+/** Version, and the links Google wants to see from the app: privacy and code. */
 @Composable
 private fun AboutCard(onOpen: (String) -> Unit) {
-    SettingsCard("Acerca de") {
+    SettingsCard(stringResource(R.string.settings_about)) {
         Text(
             text = "Boox Calendar ${BuildConfig.VERSION_NAME}",
             style = MaterialTheme.typography.titleMedium,
             color = Eink.Black,
         )
         Text(
-            text = "Calendario, recordatorios y notas a mano para tabletas Onyx Boox, con tu cuenta de Google. " +
-                "Tus datos están solo en esta tablet y en tu cuenta de Google: no hay servidores de terceros, " +
-                "ni analítica, ni publicidad.",
+            text = stringResource(R.string.settings_about_text),
             style = MaterialTheme.typography.bodyMedium,
             color = Eink.Graphite,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            EinkButton("Política de privacidad", { onOpen(AppLinks.PRIVACY) })
-            EinkButton("Código y versiones", { onOpen(AppLinks.REPOSITORY) })
+            EinkButton(stringResource(R.string.settings_privacy_policy), { onOpen(AppLinks.PRIVACY) })
+            EinkButton(stringResource(R.string.settings_code_and_versions), { onOpen(AppLinks.REPOSITORY) })
         }
     }
 }
 
-// --- Piezas -----------------------------------------------------------------
+// --- Pieces ------------------------------------------------------------------
 
-/**
- * Las notas y Google Drive: la carpeta elegida, el estado de la última pasada
- * y el botón de sincronizar ahora.
- */
+/** Notes and Google Drive: the folder, the state of the last pass and the sync-now button. */
 @Composable
 private fun DriveNotesCard(
     state: SettingsUiState,
@@ -535,24 +503,18 @@ private fun DriveNotesCard(
     val settings = state.settings
     val configured = settings.driveNotesFolderId != null
     val canEnable = state.authorized && state.hasDriveScope
-    SettingsCard("Notas en Google Drive") {
-        SettingRow(
-            label = "Carpeta de Drive",
-            hint = "La app crea «Calendario Boox» en Mi unidad y guarda ahí las notas como PDF " +
-                "vectorial editable, en carpetas iguales a las del cuaderno. La app solo ve " +
-                "lo que ella pone en Drive: un PDF de otra app (OneNote, un escaneo) entra con " +
-                "«Importar» desde el cuaderno, que lo copia a esa carpeta.",
-        ) {
+    SettingsCard(stringResource(R.string.settings_drive_notes)) {
+        SettingRow(label = stringResource(R.string.settings_drive_folder)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    text = settings.driveNotesFolderName ?: "Sin activar",
+                    text = settings.driveNotesFolderName ?: stringResource(R.string.settings_drive_off),
                     style = MaterialTheme.typography.bodyLarge,
                     color = if (configured) Eink.Black else Eink.Graphite,
                     modifier = Modifier.weight(1f),
                 )
-                if (configured) EinkButton("Quitar", onClear)
+                if (configured) EinkButton(stringResource(R.string.common_remove), onClear)
                 EinkButton(
-                    if (configured) "Usar la carpeta de la app" else "Activar",
+                    stringResource(if (configured) R.string.settings_drive_use_app_folder else R.string.settings_enable),
                     onEnable,
                     enabled = canEnable,
                     emphasized = !configured,
@@ -562,8 +524,7 @@ private fun DriveNotesCard(
         if (state.authorized && !state.hasDriveScope) {
             EinkDivider()
             Text(
-                text = "La cuenta se conectó antes de que la app pidiera permiso para Drive. " +
-                    "Desconecta y vuelve a conectar la cuenta, y acepta el permiso de Drive.",
+                text = stringResource(R.string.settings_drive_reconnect),
                 style = MaterialTheme.typography.bodyMedium,
                 color = Eink.Black,
                 modifier = Modifier
@@ -576,38 +537,24 @@ private fun DriveNotesCard(
         if (configured) {
             EinkDivider()
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Column(Modifier.weight(1f)) {
-                    Text(
-                        text = when {
-                            state.notesSyncing -> "Sincronizando notas…"
-                            settings.driveNotesError != null -> "Sin sincronizar: ${settings.driveNotesError}"
-                            settings.driveNotesSyncAt > 0 -> {
-                                val minutes = (System.currentTimeMillis() - settings.driveNotesSyncAt) / 60_000
-                                when {
-                                    minutes < 1 -> "Notas sincronizadas hace un momento"
-                                    minutes < 60 -> "Notas sincronizadas hace $minutes min"
-                                    else -> "Notas sincronizadas hace ${minutes / 60} h"
-                                }
-                            }
-                            else -> "Las notas aún no se han sincronizado"
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Eink.Black,
-                    )
-                    Text(
-                        text = "Cada nota sube medio minuto después del último trazo, y la carpeta " +
-                            "se revisa con cada sincronización.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Eink.Graphite,
-                    )
-                }
-                EinkButton("Sincronizar notas", onSyncNow, enabled = !state.notesSyncing)
+                Text(
+                    text = when {
+                        state.notesSyncing -> stringResource(R.string.settings_notes_syncing)
+                        settings.driveNotesError != null -> stringResource(R.string.common_not_synced, settings.driveNotesError)
+                        settings.driveNotesSyncAt > 0 -> stringResource(R.string.settings_notes_synced, relativeTime(settings.driveNotesSyncAt))
+                        else -> stringResource(R.string.settings_notes_not_synced_yet)
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Eink.Black,
+                    modifier = Modifier.weight(1f),
+                )
+                EinkButton(stringResource(R.string.settings_sync_notes), onSyncNow, enabled = !state.notesSyncing)
             }
         }
     }
 }
 
-/** Tarjeta de ajustes: cabecera con el tema y las filas debajo, con aire entre ellas. */
+/** Settings card: header with the topic and the rows below, with air between them. */
 @Composable
 private fun SettingsCard(
     title: String,
@@ -624,14 +571,10 @@ private fun SettingsCard(
     }
 }
 
-/**
- * Una fila de ajuste: el rótulo, el control debajo (los controles de aquí
- * son filas de botones que no caben al lado) y la explicación al final.
- */
+/** A settings row: the label and the control below (the controls here are rows of buttons that do not fit beside). */
 @Composable
 private fun SettingRow(
     label: String,
-    hint: String? = null,
     control: @Composable () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -642,32 +585,28 @@ private fun SettingRow(
             fontWeight = FontWeight.Medium,
         )
         control()
-        hint?.let { EinkHint(it) }
     }
 }
 
 @Composable
 private fun ToggleRow(
     label: String,
-    hint: String?,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
 ) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyLarge,
-                color = Eink.Black,
-                fontWeight = FontWeight.Medium,
-            )
-            hint?.let { EinkHint(it) }
-        }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyLarge,
+            color = Eink.Black,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.weight(1f),
+        )
         EinkCheckbox(checked = checked, onCheckedChange = onCheckedChange)
     }
 }
 
-/** Botones excluyentes en fila; el elegido va en negro. */
+/** Mutually exclusive buttons in a row; the chosen one goes black. */
 @Composable
 private fun <T> ChoiceRow(
     options: List<Pair<T, String>>,
@@ -686,38 +625,59 @@ private fun <T> ChoiceRow(
 }
 
 /**
- * Como [ChoiceRow], pero en varias filas: para listas que no se sabe cuántas
- * son (los calendarios y las listas de la cuenta). Tres por fila.
+ * A framed list of options with its own scroll: for lists whose length is
+ * not known (the calendars and the lists of the account). The frame keeps
+ * a fixed maximum height, so twenty calendars do not push the rest of the
+ * screen down; four rows show and the rest scrolls inside.
  */
 @Composable
-private fun <T> ChoiceGrid(
+private fun <T> ChoiceList(
     options: List<Pair<T, String>>,
     selected: T,
     onSelect: (T) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        options.chunked(3).forEach { row ->
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                row.forEach { (value, label) ->
-                    EinkButton(
-                        label = label,
-                        onClick = { onSelect(value) },
-                        selected = value == selected,
-                    )
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(ControlCorner)
+            .border(HairlineWidth, Eink.Black, ControlCorner)
+            .heightIn(max = CHOICE_LIST_MAX_HEIGHT)
+            .verticalScroll(rememberScrollState()),
+    ) {
+        options.forEachIndexed { index, (value, label) ->
+            val chosen = value == selected
+            if (index > 0) EinkDivider(color = Eink.Border)
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(if (chosen) Eink.Black else Eink.White)
+                    .einkClickable { onSelect(value) }
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.width(24.dp)) {
+                    if (chosen) EinkGlyph(Glyph.Check, size = 16.dp, tint = Eink.White)
                 }
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (chosen) Eink.White else Eink.Black,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }
 }
 
-/**
- * Las letras, cada una escrita con ella misma: es la única forma de elegir
- * una letra. La elegida va en negro.
- */
+/** Four rows of options before the list scrolls inside its frame. */
+private val CHOICE_LIST_MAX_HEIGHT = 168.dp
+
+/** The fonts, each written in itself: the only way to choose a font. The chosen one goes black. */
 @Composable
 private fun FontChoices(selected: String, onSelect: (String) -> Unit) {
-    // En dos columnas: seis filas de lado a lado hacían la tarjeta el doble
-    // de alta que la columna de al lado.
+    // Two columns: six rows edge to edge made the card twice as tall as the one beside it.
+    val sample = stringResource(R.string.settings_font_sample)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         InkFonts.all.chunked(2).forEach { pair ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -733,12 +693,12 @@ private fun FontChoices(selected: String, onSelect: (String) -> Unit) {
                             .padding(horizontal = 12.dp, vertical = 8.dp),
                     ) {
                         Text(
-                            text = font.label,
+                            text = stringResource(font.label),
                             style = MaterialTheme.typography.labelMedium,
                             color = if (chosen) Eink.White else Eink.Graphite,
                         )
                         Text(
-                            text = "Reunión el jueves a las 10",
+                            text = sample,
                             style = MaterialTheme.typography.bodyLarge.copy(fontFamily = font.family),
                             color = if (chosen) Eink.White else Eink.Black,
                             maxLines = 1,
@@ -751,7 +711,7 @@ private fun FontChoices(selected: String, onSelect: (String) -> Unit) {
     }
 }
 
-/** Aviso de una acción reciente. Se cierra tocándolo. */
+/** Notice of a recent action. Closes when tapped. */
 @Composable
 private fun Notice(message: String, onDismiss: () -> Unit) {
     Box(
@@ -769,7 +729,7 @@ private fun Notice(message: String, onDismiss: () -> Unit) {
                 modifier = Modifier.weight(1f),
             )
             Spacer(Modifier.width(8.dp))
-            EinkIconButton(Glyph.Check, onDismiss, contentDescription = "Cerrar el aviso", box = 40.dp, size = 18.dp)
+            EinkIconButton(Glyph.Check, onDismiss, contentDescription = stringResource(R.string.common_close), box = 40.dp, size = 18.dp)
         }
     }
 }

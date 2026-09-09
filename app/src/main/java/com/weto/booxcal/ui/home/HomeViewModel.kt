@@ -39,6 +39,8 @@ import kotlinx.coroutines.withContext
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneId
+import com.weto.booxcal.R
+import androidx.annotation.StringRes
 
 /**
  * Los cuatro accesos del módulo inferior, en el orden de la app nativa:
@@ -48,11 +50,11 @@ import java.time.ZoneId
  * solo conseguiría que un día el color de "recordatorio" dejara de ser el mismo
  * en la pestaña y en el menú.
  */
-enum class HomeModule(val title: String, val glyph: Glyph, val accent: Color) {
-    NOTE("Nota rápida", Glyph.TabMemo, Accent.Note),
-    REMINDERS("Recordatorios", Glyph.TabReminder, Accent.Reminder),
-    TODAY_NOTES("Notas del día", Glyph.TabNotebook, Accent.Agenda),
-    DUE("Vencidos y hoy", Glyph.TabAgenda, Accent.Today),
+enum class HomeModule(@StringRes val title: Int, val glyph: Glyph, val accent: Color) {
+    NOTE(R.string.home_module_note, Glyph.TabMemo, Accent.Note),
+    REMINDERS(R.string.common_reminders, Glyph.TabReminder, Accent.Reminder),
+    TODAY_NOTES(R.string.home_module_day_notes, Glyph.TabNotebook, Accent.Agenda),
+    DUE(R.string.home_module_due, Glyph.TabAgenda, Accent.Today),
 }
 
 /** Un día con contenido dentro de la agenda de los próximos días. */
@@ -98,26 +100,6 @@ data class HomeUiState(
     val accountConnected: Boolean = false,
     val loaded: Boolean = false,
 ) {
-    /**
-     * Una línea que dice si la sincronización va. Sin esto, tocar el icono de
-     * la nube no produce ningún efecto visible y parece que no hace nada.
-     */
-    val syncStatus: String
-        get() = when {
-            !accountConnected -> "Sin cuenta de Google: nada se sube. Conéctala desde el menú."
-            syncing -> "Sincronizando…"
-            lastSyncError != null -> "Sin sincronizar: $lastSyncError"
-            lastSyncAt > 0 -> {
-                val minutes = (System.currentTimeMillis() - lastSyncAt) / 60_000
-                when {
-                    minutes < 1 -> "Sincronizado hace un momento"
-                    minutes < 60 -> "Sincronizado hace $minutes min"
-                    else -> "Sincronizado hace ${minutes / 60} h"
-                }
-            }
-            else -> "Sin sincronizar todavía"
-        }
-
     fun bucket(date: LocalDate): DayBucket = buckets[date] ?: DayBucket(date)
 
     /** Eventos del día elegido: primero las franjas, luego los de hora. */

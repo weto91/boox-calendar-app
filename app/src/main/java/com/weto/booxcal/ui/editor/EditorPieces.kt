@@ -43,6 +43,8 @@ import com.weto.booxcal.ui.theme.EinkTile
 import com.weto.booxcal.ui.theme.Glyph
 import com.weto.booxcal.ui.theme.HairlineWidth
 import com.weto.booxcal.ui.theme.einkClickable
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
 
 /**
  * Piezas de los editores de evento y recordatorio, con el mismo lenguaje que
@@ -78,7 +80,7 @@ internal fun EditorScaffold(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            EinkIconButton(Glyph.ChevronLeft, onClose, contentDescription = "Cancelar")
+            EinkIconButton(Glyph.ChevronLeft, onClose, contentDescription = stringResource(R.string.common_cancel))
             EinkTile(glyph, accent, size = 32.dp, glyphSize = 18.dp)
             Text(
                 text = title,
@@ -87,14 +89,14 @@ internal fun EditorScaffold(
                 modifier = Modifier.weight(1f).padding(start = 6.dp),
             )
             if (onDelete != null) {
-                EinkIconButton(Glyph.Trash, onDelete, contentDescription = "Borrar", accent = Accent.Today)
+                EinkIconButton(Glyph.Trash, onDelete, contentDescription = stringResource(R.string.common_delete), accent = Accent.Today)
             }
-            EinkButton(label = "Guardar", onClick = onSave, enabled = canSave, emphasized = true)
+            EinkButton(label = stringResource(R.string.common_save), onClick = onSave, enabled = canSave, emphasized = true)
         }
         EinkDivider(color = Eink.Black)
 
         if (loading) {
-            EinkHint("Cargando…", Modifier.padding(16.dp))
+            EinkHint(stringResource(R.string.common_loading), Modifier.padding(16.dp))
             return@Column
         }
 

@@ -36,6 +36,11 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
+import com.weto.booxcal.util.rememberDateFormat
+import com.weto.booxcal.util.rememberLocale
+import com.weto.booxcal.util.format
 
 @Composable
 fun CalendarScreen(
@@ -120,7 +125,7 @@ fun CalendarScreen(
         state.lastSyncError?.let { error ->
             EinkDivider()
             Text(
-                text = "Sincronización: $error",
+                text = stringResource(R.string.calendar_sync_error, error),
                 style = MaterialTheme.typography.labelSmall,
                 color = Eink.Graphite,
                 maxLines = 2,
@@ -133,9 +138,6 @@ fun CalendarScreen(
         }
     }
 }
-
-private val dayTitleFormatter: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", Locale.getDefault())
 
 @Composable
 private fun CalendarTopBar(
@@ -151,21 +153,22 @@ private fun CalendarTopBar(
     onOpenTasks: () -> Unit,
     onOpenSettings: () -> Unit,
 ) {
+    val locale = rememberLocale()
+    val dayTitleFormatter = rememberDateFormat(R.string.pattern_weekday_day_month)
     Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp)) {
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            EinkIconButton(Glyph.ChevronLeft, onBack, contentDescription = "Volver al panel")
-            EinkIconButton(Glyph.ChevronLeft, onPrevious, contentDescription = "Anterior", box = 44.dp)
-            EinkIconButton(Glyph.ChevronRight, onNext, contentDescription = "Siguiente", box = 44.dp)
+            EinkIconButton(Glyph.ChevronLeft, onBack, contentDescription = stringResource(R.string.calendar_back_to_home))
+            EinkIconButton(Glyph.ChevronLeft, onPrevious, contentDescription = stringResource(R.string.common_previous), box = 44.dp)
+            EinkIconButton(Glyph.ChevronRight, onNext, contentDescription = stringResource(R.string.common_next), box = 44.dp)
             Text(
                 text = when (state.mode) {
-                    CalendarViewMode.DAY -> state.anchor.format(dayTitleFormatter)
-                        .replaceFirstChar { it.titlecase(Locale.getDefault()) }
+                    CalendarViewMode.DAY -> state.anchor.format(dayTitleFormatter, capitalize = true, locale = locale)
 
-                    else -> monthTitle(state.anchor)
+                    else -> monthTitle(state.anchor, locale)
                 },
                 style = MaterialTheme.typography.headlineSmall,
                 color = Eink.Black,
@@ -176,12 +179,12 @@ private fun CalendarTopBar(
             EinkIconButton(
                 glyph = Glyph.SyncCloud,
                 onClick = onSync,
-                contentDescription = "Sincronizar",
+                contentDescription = stringResource(R.string.common_sync),
                 enabled = !state.syncing,
                 accent = Accent.Sync,
             )
-            EinkIconButton(Glyph.ListCheck, onOpenTasks, contentDescription = "Recordatorios", accent = Accent.Reminder)
-            EinkIconButton(Glyph.Gear, onOpenSettings, contentDescription = "Ajustes", accent = Accent.Settings)
+            EinkIconButton(Glyph.ListCheck, onOpenTasks, contentDescription = stringResource(R.string.common_reminders), accent = Accent.Reminder)
+            EinkIconButton(Glyph.Gear, onOpenSettings, contentDescription = stringResource(R.string.common_settings), accent = Accent.Settings)
         }
 
         Row(
@@ -199,15 +202,21 @@ private fun CalendarTopBar(
                         CalendarViewMode.DAY -> Glyph.GridDay
                     },
                     onClick = { onMode(mode) },
-                    contentDescription = mode.label,
+                    contentDescription = stringResource(
+                        when (mode) {
+                            CalendarViewMode.MONTH -> R.string.common_month
+                            CalendarViewMode.WEEK -> R.string.common_week
+                            CalendarViewMode.DAY -> R.string.common_day
+                        }
+                    ),
                     selected = state.mode == mode,
                     accent = Accent.Event,
                 )
             }
-            EinkIconButton(Glyph.Today, onToday, contentDescription = "Hoy", accent = Accent.Today)
+            EinkIconButton(Glyph.Today, onToday, contentDescription = stringResource(R.string.common_today), accent = Accent.Today)
             Spacer(Modifier.weight(1f))
-            EinkIconButton(Glyph.Pencil, onDayNote, contentDescription = "Escribir a mano", accent = Accent.Note)
-            EinkIconButton(Glyph.Plus, onNewEvent, contentDescription = "Evento nuevo", accent = Accent.Event)
+            EinkIconButton(Glyph.Pencil, onDayNote, contentDescription = stringResource(R.string.common_write_by_hand), accent = Accent.Note)
+            EinkIconButton(Glyph.Plus, onNewEvent, contentDescription = stringResource(R.string.common_new_event), accent = Accent.Event)
         }
     }
 }

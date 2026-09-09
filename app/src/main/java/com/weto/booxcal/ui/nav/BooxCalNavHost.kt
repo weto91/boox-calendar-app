@@ -47,6 +47,7 @@ import com.weto.booxcal.ui.theme.ControlCorner
 import com.weto.booxcal.ui.theme.Eink
 import com.weto.booxcal.util.MILLIS_PER_DAY
 import java.time.LocalDate
+import com.weto.booxcal.ink.TemplateRef
 
 /** Lo que pidió el «+»: el día y, si viene del lazo, qué crear y con qué título. */
 private data class CreateRequest(
@@ -67,7 +68,7 @@ object Routes {
     const val EVENT = "event?eventId={eventId}&day={day}"
     const val TASK = "task?taskId={taskId}&day={day}"
     const val NOTES = "notes?noteId={noteId}&page={page}"
-    const val DAY_NOTE = "dayNote/{dayMillis}?noteId={noteId}&folderId={folderId}&anchor={anchor}&page={page}&blank={blank}"
+    const val DAY_NOTE = "dayNote/{dayMillis}?noteId={noteId}&folderId={folderId}&anchor={anchor}&page={page}&blank={blank}&tpl={tpl}&tplPage={tplPage}"
 
     private const val NONE = -1L
 
@@ -96,9 +97,10 @@ object Routes {
     fun dayNoteBlank(date: LocalDate): String =
         "dayNote/${date.toEpochDay() * MILLIS_PER_DAY}?noteId=$NONE&folderId=$NONE&anchor=1&page=0&blank=1"
 
-    /** Nota nueva del gestor, en una carpeta, sin anclar a ningún día. */
-    fun folderNote(folderId: Long?): String =
-        "dayNote/${LocalDate.now().toEpochDay() * MILLIS_PER_DAY}?noteId=$NONE&folderId=${folderId ?: NONE}&anchor=0&page=0&blank=0"
+    /** A new notebook note in a folder, anchored to no day, optionally started from a page template. */
+    fun folderNote(folderId: Long?, template: TemplateRef? = null): String =
+        "dayNote/${LocalDate.now().toEpochDay() * MILLIS_PER_DAY}?noteId=$NONE&folderId=${folderId ?: NONE}&anchor=0&page=0&blank=0" +
+            (template?.let { "&tpl=${Uri.encode(it.path)}&tplPage=${it.page}" } ?: "")
 
     /** La fecha con la que se abre una nota: su día anclado o, si no tiene, el de su creación. */
     fun noteDate(note: InkNoteEntity): LocalDate =
@@ -175,7 +177,7 @@ fun BooxCalNavHost(modifier: Modifier = Modifier) {
                     onOpenNote = { note, page ->
                         navController.navigate(Routes.dayNote(Routes.noteDate(note), note.id, page))
                     },
-                    onNewNote = { folderId -> navController.navigate(Routes.folderNote(folderId)) },
+                    onNewNote = { folderId, template -> navController.navigate(Routes.folderNote(folderId, template)) },
                     onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                     revealNoteId = Routes.optionalId(entry.arguments?.getLong("noteId") ?: -1L),
                     revealPage = entry.arguments?.getInt("page") ?: 0,
@@ -295,8 +297,11 @@ fun BooxCalNavHost(modifier: Modifier = Modifier) {
                     navArgument("anchor") { type = NavType.IntType; defaultValue = 1 },
                     navArgument("page") { type = NavType.IntType; defaultValue = 0 },
                     navArgument("blank") { type = NavType.IntType; defaultValue = 0 },
+                    navArgument("tpl") { type = NavType.StringType; defaultValue = "" },
+                    navArgument("tplPage") { type = NavType.IntType; defaultValue = 0 },
                 ),
             ) { entry ->
+                val templatePath = entry.arguments?.getString("tpl").orEmpty()
                 DayNoteScreen(
                     blank = (entry.arguments?.getInt("blank") ?: 0) == 1,
                     dayMillis = entry.arguments?.getLong("dayMillis") ?: 0L,
@@ -304,6 +309,7 @@ fun BooxCalNavHost(modifier: Modifier = Modifier) {
                     folderId = Routes.optionalId(entry.arguments?.getLong("folderId") ?: -1L),
                     anchorToDay = (entry.arguments?.getInt("anchor") ?: 1) == 1,
                     initialPage = entry.arguments?.getInt("page") ?: 0,
+                    template = templatePath.takeIf { it.isNotEmpty() }?.let { TemplateRef(it, entry.arguments?.getInt("tplPage") ?: 0) },
                     onClose = { navController.popBackStack() },
                     // La ventana de creación flota sobre el cuaderno, como en
                     // la portada: el texto reconocido va de título.

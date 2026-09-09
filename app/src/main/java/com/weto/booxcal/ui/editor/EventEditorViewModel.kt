@@ -25,16 +25,18 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import com.weto.booxcal.R
+import androidx.annotation.StringRes
 
-data class ReminderOption(val minutes: Int?, val label: String)
+data class ReminderOption(val minutes: Int?, @StringRes val label: Int)
 
 val REMINDER_OPTIONS = listOf(
-    ReminderOption(null, "Sin aviso"),
-    ReminderOption(0, "A la hora"),
-    ReminderOption(10, "10 min"),
-    ReminderOption(30, "30 min"),
-    ReminderOption(60, "1 hora"),
-    ReminderOption(1440, "1 día"),
+    ReminderOption(null, R.string.alert_none),
+    ReminderOption(0, R.string.alert_at_time),
+    ReminderOption(10, R.string.alert_10_min),
+    ReminderOption(30, R.string.alert_30_min),
+    ReminderOption(60, R.string.alert_1_hour),
+    ReminderOption(1440, R.string.alert_1_day),
 )
 
 data class EventForm(
@@ -187,7 +189,7 @@ class EventEditorViewModel(
             }.onSuccess {
                 _form.value = _form.value.copy(saved = true)
             }.onFailure { t ->
-                _form.value = _form.value.copy(error = t.message ?: "No se pudo guardar")
+                _form.value = _form.value.copy(error = t.message ?: Graph.appContext.getString(R.string.editor_save_failed))
             }
         }
     }

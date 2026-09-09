@@ -51,20 +51,22 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.ChronoUnit
 import java.util.Locale
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
+import com.weto.booxcal.util.rememberDateFormat
+import com.weto.booxcal.util.rememberLocale
+import com.weto.booxcal.util.format
+import androidx.compose.runtime.remember
 
-private val longDate: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("EEEE d 'de' MMMM 'de' yyyy", Locale.getDefault())
-private val shortDate: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("EEE d MMM", Locale.getDefault())
-private val weekdayShort: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE", Locale.getDefault())
-private val monthShort: DateTimeFormatter = DateTimeFormatter.ofPattern("MMM yyyy", Locale.getDefault())
 private val clock: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
+@Composable
 private fun LocalDate.long(): String =
-    format(longDate).replaceFirstChar { it.titlecase(Locale.getDefault()) }
+    format(rememberDateFormat(R.string.pattern_date_full), capitalize = true, locale = rememberLocale())
 
-/** "sáb 5 sept": en minúscula y sin los puntos de abreviatura, que ensucian. */
-private fun LocalDate.short(): String = format(shortDate).replace(".", "")
+/** "sat 5 Sep": lower case and without the abbreviation dots, which look dirty. */
+@Composable
+private fun LocalDate.short(): String = format(rememberDateFormat(R.string.pattern_date_short)).replace(".", "")
 
 /** Ancho máximo del contenido: a pantalla completa una línea de texto de lado a lado se lee mal. */
 private val CONTENT_MAX_WIDTH = 820.dp
@@ -75,32 +77,38 @@ private val CONTENT_MAX_WIDTH = 820.dp
  * "Sábado 5 de septiembre de 2026, de 2:00 a 3:00". Si acaba otro día, se dice
  * el otro día; si es de día completo, se dice "todo el día".
  */
+@Composable
 fun EventForm.whenLabel(): String {
     val sameDay = startDate == endDate
     return when {
-        allDay && sameDay -> "${startDate.long()} · todo el día"
-        allDay -> "Del ${startDate.short()} al ${endDate.short()} · todo el día"
-        sameDay -> "${startDate.long()}, de ${startTime.format(clock)} a ${endTime.format(clock)}"
-        else -> "${startDate.short()} ${startTime.format(clock)} → ${endDate.short()} ${endTime.format(clock)}"
+        allDay && sameDay -> stringResource(R.string.detail_when_all_day, startDate.long())
+        allDay -> stringResource(R.string.detail_when_multi_all_day, startDate.short(), endDate.short())
+        sameDay -> stringResource(R.string.detail_when_timed, startDate.long(), startTime.format(clock), endTime.format(clock))
+        else -> stringResource(
+            R.string.detail_when_multi_timed,
+            startDate.short(), startTime.format(clock), endDate.short(), endTime.format(clock),
+        )
     }
 }
 
 /** Lo que se lee al lado del bloque de fecha: la hora, o hasta cuándo dura. */
+@Composable
 private fun EventForm.whenPrimary(): String {
     val sameDay = startDate == endDate
     return when {
-        allDay && sameDay -> "Todo el día"
-        allDay -> "Hasta el ${endDate.short()}, todo el día"
-        sameDay -> "De ${startTime.format(clock)} a ${endTime.format(clock)}"
-        else -> "Desde las ${startTime.format(clock)} hasta el ${endDate.short()} a las ${endTime.format(clock)}"
+        allDay && sameDay -> stringResource(R.string.common_all_day)
+        allDay -> stringResource(R.string.detail_primary_until_all_day, endDate.short())
+        sameDay -> stringResource(R.string.detail_primary_timed, startTime.format(clock), endTime.format(clock))
+        else -> stringResource(R.string.detail_primary_multi_timed, startTime.format(clock), endDate.short(), endTime.format(clock))
     }
 }
 
 /** "1 h 30 min", "45 min", "3 días". Nada si dura lo normal de un día completo. */
+@Composable
 private fun EventForm.durationLabel(): String? {
     if (allDay) {
         val days = ChronoUnit.DAYS.between(startDate, endDate) + 1
-        return if (days > 1) "$days días" else null
+        return if (days > 1) stringResource(R.string.duration_days, days) else null
     }
     val minutes = Duration.between(
         LocalDateTime.of(startDate, startTime),
@@ -110,36 +118,38 @@ private fun EventForm.durationLabel(): String? {
     val hours = minutes / 60
     val rest = minutes % 60
     return when {
-        hours == 0L -> "$rest min"
-        rest == 0L -> "$hours h"
-        else -> "$hours h $rest min"
+        hours == 0L -> stringResource(R.string.duration_minutes, rest)
+        rest == 0L -> stringResource(R.string.duration_hours, hours)
+        else -> stringResource(R.string.duration_hours_minutes, hours, rest)
     }
 }
 
 /** "Hoy", "Mañana", "Dentro de 3 días"… o nada si queda lejos: la fecha ya está al lado. */
+@Composable
 private fun relativeDay(date: LocalDate, today: LocalDate): String? {
     val days = ChronoUnit.DAYS.between(today, date).toInt()
     return when {
-        days == 0 -> "Hoy"
-        days == 1 -> "Mañana"
-        days == -1 -> "Ayer"
-        days in 2..13 -> "Dentro de $days días"
-        days in -13..-2 -> "Hace ${-days} días"
+        days == 0 -> stringResource(R.string.common_today)
+        days == 1 -> stringResource(R.string.common_tomorrow)
+        days == -1 -> stringResource(R.string.common_yesterday)
+        days in 2..13 -> stringResource(R.string.relative_in_days, days)
+        days in -13..-2 -> stringResource(R.string.relative_days_ago, -days)
         else -> null
     }
 }
 
 /** Lo que se dice de un vencimiento: si ya pasó, cuánto hace; si no, cuánto queda. */
+@Composable
 private fun dueLabel(due: LocalDate, today: LocalDate): String {
     val days = ChronoUnit.DAYS.between(today, due).toInt()
     return when {
-        days == 0 -> "Vence hoy"
-        days == 1 -> "Vence mañana"
-        days == -1 -> "Venció ayer"
-        days in 2..13 -> "Vence dentro de $days días"
-        days in -13..-2 -> "Venció hace ${-days} días"
-        days > 0 -> "Vence el ${due.short()}"
-        else -> "Venció el ${due.short()}"
+        days == 0 -> stringResource(R.string.due_today)
+        days == 1 -> stringResource(R.string.due_tomorrow)
+        days == -1 -> stringResource(R.string.due_yesterday)
+        days in 2..13 -> stringResource(R.string.due_in_days, days)
+        days in -13..-2 -> stringResource(R.string.due_days_ago, -days)
+        days > 0 -> stringResource(R.string.due_on, due.short())
+        else -> stringResource(R.string.due_was_on, due.short())
     }
 }
 
@@ -168,22 +178,22 @@ fun EventDetail(
     }
     val chips = buildList {
         form.calendarName?.let { add(DetailChip(it, dot = accent)) }
-        if (form.allDay) add(DetailChip("Todo el día"))
-        if (form.isRecurringInstance) add(DetailChip("Se repite"))
+        if (form.allDay) add(DetailChip(stringResource(R.string.common_all_day)))
+        if (form.isRecurringInstance) add(DetailChip(stringResource(R.string.detail_repeats)))
     }
 
     DetailScaffold(
-        kind = "Evento",
+        kind = stringResource(R.string.common_event),
         glyph = Glyph.Today,
         accent = accent,
-        title = form.title.ifBlank { "(sin título)" },
+        title = form.title.ifBlank { stringResource(R.string.common_untitled) },
         chips = chips,
         onClose = onClose,
         onEdit = onEdit,
         onDelete = onDelete,
         modifier = modifier,
     ) {
-        DetailCard("Cuándo") {
+        DetailCard(stringResource(R.string.common_when)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 DateBlock(form.startDate)
                 Column(Modifier.weight(1f).padding(start = 16.dp)) {
@@ -209,34 +219,34 @@ fun EventDetail(
         val hasDetails = form.calendarName != null || form.reminderMinutes != null ||
             form.location.isNotBlank() || form.isRecurringInstance
         if (hasDetails) {
-            DetailCard("Detalles") {
+            DetailCard(stringResource(R.string.detail_details)) {
                 form.calendarName?.let {
-                    InfoRow(Glyph.Today, accent, "Calendario", it)
+                    InfoRow(Glyph.Today, accent, stringResource(R.string.common_calendar), it)
                 }
                 form.location.takeIf { it.isNotBlank() }?.let {
-                    InfoRow(Glyph.Pin, Accent.Place, "Lugar", it)
+                    InfoRow(Glyph.Pin, Accent.Place, stringResource(R.string.common_place), it)
                 }
                 form.reminderMinutes?.let { minutes ->
-                    val label = REMINDER_OPTIONS.firstOrNull { it.minutes == minutes }?.label
-                        ?: "$minutes min"
+                    val label = REMINDER_OPTIONS.firstOrNull { it.minutes == minutes }?.let { stringResource(it.label) }
+                        ?: stringResource(R.string.duration_minutes, minutes)
                     InfoRow(
-                        Glyph.Bell, Accent.Alarm, "Aviso",
-                        if (minutes == 0) "A la hora del evento" else "$label antes",
-                        secondary = "Lo entrega Google en los dispositivos de la cuenta.",
+                        Glyph.Bell, Accent.Alarm, stringResource(R.string.common_alert),
+                        if (minutes == 0) stringResource(R.string.detail_alert_at_time) else stringResource(R.string.detail_alert_before, label),
+                        secondary = stringResource(R.string.detail_alert_hint),
                     )
                 }
                 if (form.isRecurringInstance) {
                     InfoRow(
-                        Glyph.Undo, Accent.Time, "Repetición",
-                        "Forma parte de una serie",
-                        secondary = "Los cambios afectan solo a esta aparición.",
+                        Glyph.Undo, Accent.Time, stringResource(R.string.detail_repetition),
+                        stringResource(R.string.detail_part_of_series),
+                        secondary = stringResource(R.string.detail_series_hint),
                     )
                 }
             }
         }
 
         form.description.takeIf { it.isNotBlank() }?.let {
-            DetailCard("Descripción") { BodyText(it) }
+            DetailCard(stringResource(R.string.common_description)) { BodyText(it) }
         }
         InkCard(ink)
     }
@@ -256,16 +266,16 @@ fun TaskDetail(
     val list = form.lists.firstOrNull { it.id == form.taskListId }
     val overdue = !form.completed && form.dueDate?.isBefore(today) == true
     val chips = buildList {
-        add(DetailChip(if (form.completed) "Completada" else "Pendiente", filled = form.completed))
-        if (overdue) add(DetailChip("Vencida", dot = Accent.Today))
+        add(DetailChip(stringResource(if (form.completed) R.string.common_completed else R.string.common_pending), filled = form.completed))
+        if (overdue) add(DetailChip(stringResource(R.string.detail_overdue), dot = Accent.Today))
         list?.let { add(DetailChip(it.name, dot = EinkPalette.forArgb(it.colorArgb))) }
     }
 
     DetailScaffold(
-        kind = "Recordatorio",
+        kind = stringResource(R.string.common_reminder),
         glyph = Glyph.Bell,
         accent = Accent.Reminder,
-        title = form.title.ifBlank { "(sin título)" },
+        title = form.title.ifBlank { stringResource(R.string.common_untitled) },
         chips = chips,
         onClose = onClose,
         onEdit = onEdit,
@@ -273,20 +283,20 @@ fun TaskDetail(
         modifier = modifier,
         strike = form.completed,
     ) {
-        DetailCard("Vencimiento") {
+        DetailCard(stringResource(R.string.task_due)) {
             val due = form.dueDate
             if (due == null) {
                 InfoRow(
-                    Glyph.Today, Accent.Reminder, "Fecha",
-                    "Sin fecha de vencimiento",
-                    secondary = "Sale en la lista de recordatorios, no en el calendario.",
+                    Glyph.Today, Accent.Reminder, stringResource(R.string.common_date),
+                    stringResource(R.string.detail_no_due_date),
+                    secondary = stringResource(R.string.detail_no_due_hint),
                 )
             } else {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     DateBlock(due)
                     Column(Modifier.weight(1f).padding(start = 16.dp)) {
                         Text(
-                            text = if (form.completed) "Completada" else dueLabel(due, today),
+                            text = if (form.completed) stringResource(R.string.common_completed) else dueLabel(due, today),
                             style = MaterialTheme.typography.titleLarge,
                             color = Eink.Black,
                         )
@@ -301,24 +311,24 @@ fun TaskDetail(
             }
         }
 
-        DetailCard("Estado") {
+        DetailCard(stringResource(R.string.task_status)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 EinkRadioCheck(checked = form.completed, onCheckedChange = onToggleCompleted)
                 Column(Modifier.weight(1f).padding(start = 6.dp, end = 12.dp)) {
                     Text(
-                        text = if (form.completed) "Hecha" else "Por hacer",
+                        text = stringResource(if (form.completed) R.string.detail_done else R.string.detail_to_do),
                         style = MaterialTheme.typography.titleMedium,
                         color = Eink.Black,
                     )
                     Text(
-                        text = list?.let { "Lista «${it.name}». " }.orEmpty() +
-                            "El cambio sube a Google en unos segundos.",
+                        text = list?.let { stringResource(R.string.detail_list_named, it.name) }.orEmpty() +
+                            stringResource(R.string.task_status_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = Eink.Graphite,
                     )
                 }
                 EinkButton(
-                    label = if (form.completed) "Reabrir" else "Marcar hecha",
+                    label = stringResource(if (form.completed) R.string.detail_reopen else R.string.detail_mark_done),
                     onClick = { onToggleCompleted(!form.completed) },
                     emphasized = !form.completed,
                 )
@@ -326,7 +336,7 @@ fun TaskDetail(
         }
 
         form.notes.takeIf { it.isNotBlank() }?.let {
-            DetailCard("Notas") { BodyText(it) }
+            DetailCard(stringResource(R.string.common_notes_field)) { BodyText(it) }
         }
         InkCard(ink)
     }
@@ -361,15 +371,15 @@ private fun DetailScaffold(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            EinkIconButton(Glyph.ChevronLeft, onClose, contentDescription = "Volver")
+            EinkIconButton(Glyph.ChevronLeft, onClose, contentDescription = stringResource(R.string.common_back))
             Text(
                 text = kind,
                 style = MaterialTheme.typography.titleLarge,
                 color = Eink.Black,
                 modifier = Modifier.weight(1f).padding(start = 4.dp),
             )
-            EinkIconButton(Glyph.Trash, onDelete, contentDescription = "Borrar", accent = Accent.Today)
-            EinkButton(label = "Editar", onClick = onEdit, emphasized = true)
+            EinkIconButton(Glyph.Trash, onDelete, contentDescription = stringResource(R.string.common_delete), accent = Accent.Today)
+            EinkButton(label = stringResource(R.string.common_edit), onClick = onEdit, emphasized = true)
         }
         EinkDivider(color = Eink.Black)
 
@@ -415,7 +425,7 @@ private fun Hero(
                 EinkTile(glyph, accent, size = 50.dp, glyphSize = 28.dp)
                 Column(Modifier.padding(start = 14.dp)) {
                     Text(
-                        text = kind.uppercase(Locale.getDefault()),
+                        text = kind.uppercase(rememberLocale()),
                         style = MaterialTheme.typography.labelLarge,
                         color = Eink.Graphite,
                     )
@@ -484,6 +494,9 @@ private fun DetailCard(title: String, content: @Composable ColumnScope.() -> Uni
 /** Hoja de calendario: el día de la semana, el número grande y el mes. */
 @Composable
 private fun DateBlock(date: LocalDate) {
+    val locale = rememberLocale()
+    val weekdayShort = remember(locale) { DateTimeFormatter.ofPattern("EEE", locale) }
+    val monthShort = remember(locale) { DateTimeFormatter.ofPattern("MMM yyyy", locale) }
     Column(
         Modifier
             .width(78.dp)
@@ -493,7 +506,7 @@ private fun DateBlock(date: LocalDate) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text(
-            text = date.format(weekdayShort).replace(".", "").uppercase(Locale.getDefault()),
+            text = date.format(weekdayShort).replace(".", "").uppercase(locale),
             style = MaterialTheme.typography.labelSmall,
             color = Eink.Graphite,
         )
@@ -504,7 +517,7 @@ private fun DateBlock(date: LocalDate) {
             textAlign = TextAlign.Center,
         )
         Text(
-            text = date.format(monthShort).replace(".", "").uppercase(Locale.getDefault()),
+            text = date.format(monthShort).replace(".", "").uppercase(locale),
             style = MaterialTheme.typography.labelSmall,
             color = Eink.Graphite,
         )
@@ -524,7 +537,7 @@ private fun InfoRow(
         EinkTile(glyph, accent, size = 36.dp, glyphSize = 20.dp)
         Column(Modifier.weight(1f).padding(start = 12.dp)) {
             Text(
-                text = label.uppercase(Locale.getDefault()),
+                text = label.uppercase(rememberLocale()),
                 style = MaterialTheme.typography.labelSmall,
                 color = Eink.Graphite,
             )
@@ -558,7 +571,7 @@ private fun BodyText(text: String) {
 @Composable
 private fun InkCard(ink: InkDocument) {
     if (ink.isEmpty) return
-    DetailCard("Nota manuscrita") {
+    DetailCard(stringResource(R.string.common_handwritten_note)) {
         InkPreview(
             document = ink,
             modifier = Modifier

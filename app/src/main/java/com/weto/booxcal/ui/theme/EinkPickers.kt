@@ -30,6 +30,11 @@ import java.time.LocalDate
 import java.time.LocalTime
 import java.time.format.TextStyle as JavaTextStyle
 import java.util.Locale
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
+import com.weto.booxcal.util.rememberDateFormat
+import com.weto.booxcal.util.rememberLocale
+import com.weto.booxcal.util.format
 
 /**
  * Etiquetas de la cabecera de días.
@@ -67,8 +72,9 @@ fun EinkDatePickerDialog(
 ) {
     var visibleMonth by remember { mutableStateOf(initial.withDayOfMonth(1)) }
     var selected by remember { mutableStateOf(initial) }
+    val locale = rememberLocale()
 
-    EinkDialog(onDismiss = onDismiss, title = "Elegir fecha", modifier = Modifier.width(360.dp)) {
+    EinkDialog(onDismiss = onDismiss, title = stringResource(R.string.picker_choose_date), modifier = Modifier.width(360.dp)) {
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -76,7 +82,7 @@ fun EinkDatePickerDialog(
         ) {
             EinkButton("‹", { visibleMonth = visibleMonth.minusMonths(1) }, minWidth = 52.dp)
             Text(
-                text = monthTitle(visibleMonth),
+                text = monthTitle(visibleMonth, locale),
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f),
@@ -87,7 +93,7 @@ fun EinkDatePickerDialog(
         Spacer(Modifier.height(10.dp))
 
         Row(Modifier.fillMaxWidth()) {
-            weekdayLabels(weekStart).forEach { label ->
+            weekdayLabels(weekStart, locale = locale).forEach { label ->
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
@@ -130,14 +136,14 @@ fun EinkDatePickerDialog(
 
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            EinkButton("Hoy", {
+            EinkButton(stringResource(R.string.common_today), {
                 selected = LocalDate.now()
                 visibleMonth = selected.withDayOfMonth(1)
             })
-            if (onClear != null) EinkButton("Sin fecha", onClear)
+            if (onClear != null) EinkButton(stringResource(R.string.common_no_date), onClear)
             Spacer(Modifier.weight(1f))
-            EinkButton("Cancelar", onDismiss)
-            EinkButton("Aceptar", { onSelected(selected) }, emphasized = true)
+            EinkButton(stringResource(R.string.common_cancel), onDismiss)
+            EinkButton(stringResource(R.string.common_ok), { onSelected(selected) }, emphasized = true)
         }
     }
 }
@@ -150,7 +156,7 @@ fun EinkTimePickerDialog(
 ) {
     var time by remember { mutableStateOf(initial.withSecond(0).withNano(0)) }
 
-    EinkDialog(onDismiss = onDismiss, title = "Elegir hora", modifier = Modifier.width(320.dp)) {
+    EinkDialog(onDismiss = onDismiss, title = stringResource(R.string.picker_choose_time), modifier = Modifier.width(320.dp)) {
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center,
@@ -176,8 +182,8 @@ fun EinkTimePickerDialog(
         Spacer(Modifier.height(14.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Spacer(Modifier.weight(1f))
-            EinkButton("Cancelar", onDismiss)
-            EinkButton("Aceptar", { onSelected(time) }, emphasized = true)
+            EinkButton(stringResource(R.string.common_cancel), onDismiss)
+            EinkButton(stringResource(R.string.common_ok), { onSelected(time) }, emphasized = true)
         }
     }
 }
@@ -225,18 +231,19 @@ data class EventWhen(
     val sameDay: Boolean get() = startDate == endDate
 }
 
-private val whenDay: java.time.format.DateTimeFormatter =
-    java.time.format.DateTimeFormatter.ofPattern("EEE d MMM", Locale.getDefault())
 private val whenClock: java.time.format.DateTimeFormatter = java.time.format.DateTimeFormatter.ofPattern("HH:mm")
 
-private fun LocalDate.whenLabel(): String =
-    format(whenDay).replace(".", "").replaceFirstChar { it.titlecase(Locale.getDefault()) }
-
-/** Una línea que dice cuándo: «Mié 8 sept, de 10:00 a 11:00», «Del Lun 8 sept al Mié 10 sept, todo el día». */
-fun EventWhen.label(): String = when {
-    !sameDay -> "Del ${startDate.whenLabel()} al ${endDate.whenLabel()}, todo el día"
-    allDay -> "${startDate.whenLabel()}, todo el día"
-    else -> "${startDate.whenLabel()}, de ${startTime.format(whenClock)} a ${endTime.format(whenClock)}"
+/** One line that says when: "Wed 8 Sep, 10:00 to 11:00", "Mon 8 Sep to Wed 10 Sep, all day". */
+@Composable
+fun EventWhen.label(): String {
+    val day = rememberDateFormat(R.string.pattern_date_short)
+    val locale = rememberLocale()
+    val start = startDate.format(day, capitalize = true, locale = locale)
+    return when {
+        !sameDay -> stringResource(R.string.when_label_multi_day, start, endDate.format(day, capitalize = true, locale = locale))
+        allDay -> stringResource(R.string.when_label_all_day, start)
+        else -> stringResource(R.string.when_label_timed, start, startTime.format(whenClock), endTime.format(whenClock))
+    }
 }
 
 /**
@@ -267,6 +274,7 @@ fun EinkWhenPickerDialog(
     var awaitingEnd by remember { mutableStateOf(false) }
     // 0: la hora de empezar; 1: la de acabar. Null: ninguna abierta.
     var timePicker by remember { mutableStateOf<Int?>(null) }
+    val locale = rememberLocale()
 
     fun tap(day: LocalDate) {
         if (awaitingEnd && day.isAfter(start)) {
@@ -292,7 +300,7 @@ fun EinkWhenPickerDialog(
 
     val current = EventWhen(start, end, allDay || start != end, startTime, endTime)
 
-    EinkDialog(onDismiss = onDismiss, title = "Cuándo", modifier = Modifier.width(400.dp)) {
+    EinkDialog(onDismiss = onDismiss, title = stringResource(R.string.common_when), modifier = Modifier.width(400.dp)) {
         Row(
             Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -300,7 +308,7 @@ fun EinkWhenPickerDialog(
         ) {
             EinkButton("‹", { visibleMonth = visibleMonth.minusMonths(1) }, minWidth = 52.dp)
             Text(
-                text = monthTitle(visibleMonth),
+                text = monthTitle(visibleMonth, locale),
                 style = MaterialTheme.typography.titleMedium,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f),
@@ -311,7 +319,7 @@ fun EinkWhenPickerDialog(
         Spacer(Modifier.height(10.dp))
 
         Row(Modifier.fillMaxWidth()) {
-            weekdayLabels(weekStart).forEach { label ->
+            weekdayLabels(weekStart, locale = locale).forEach { label ->
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelSmall,
@@ -360,11 +368,11 @@ fun EinkWhenPickerDialog(
         Spacer(Modifier.height(6.dp))
 
         if (start != end) {
-            EinkHint("Varios días: es de todo el día. Toca un día para empezar de nuevo.")
+            EinkHint(stringResource(R.string.picker_when_hint_multi_day))
         } else {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "Todo el día",
+                    text = stringResource(R.string.common_all_day),
                     style = MaterialTheme.typography.bodyLarge,
                     color = Eink.Black,
                     modifier = Modifier.weight(1f),
@@ -372,8 +380,8 @@ fun EinkWhenPickerDialog(
                 EinkCheckbox(checked = allDay, onCheckedChange = { allDay = it })
             }
             if (!allDay) {
-                TimeRow("Empieza", startTime, onChange = ::moveStart, onOpen = { timePicker = 0 })
-                TimeRow("Termina", endTime, onChange = ::moveEnd, onOpen = { timePicker = 1 })
+                TimeRow(stringResource(R.string.picker_starts), startTime, onChange = ::moveStart, onOpen = { timePicker = 0 })
+                TimeRow(stringResource(R.string.picker_ends), endTime, onChange = ::moveEnd, onOpen = { timePicker = 1 })
             }
         }
 
@@ -386,13 +394,13 @@ fun EinkWhenPickerDialog(
 
         Spacer(Modifier.height(12.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            EinkButton("Hoy", {
+            EinkButton(stringResource(R.string.common_today), {
                 tap(LocalDate.now())
                 visibleMonth = start.withDayOfMonth(1)
             })
             Spacer(Modifier.weight(1f))
-            EinkButton("Cancelar", onDismiss)
-            EinkButton("Aceptar", { onSelected(current) }, emphasized = true)
+            EinkButton(stringResource(R.string.common_cancel), onDismiss)
+            EinkButton(stringResource(R.string.common_ok), { onSelected(current) }, emphasized = true)
         }
     }
 

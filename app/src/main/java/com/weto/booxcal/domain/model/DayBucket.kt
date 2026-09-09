@@ -26,8 +26,4 @@ data class DayBucket(
     val entryCount: Int get() = banners.size + timed.size + tasks.size
 }
 
-enum class CalendarViewMode(val label: String) {
-    MONTH("Mes"),
-    WEEK("Semana"),
-    DAY("Día"),
-}
+enum class CalendarViewMode { MONTH, WEEK, DAY }

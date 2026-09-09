@@ -38,6 +38,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
 
 /**
  * Pulsación sin ninguna realimentación visual animada. Todos los controles de
@@ -436,7 +438,7 @@ fun EinkFab(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     glyph: Glyph = Glyph.Plus,
-    contentDescription: String? = "Crear",
+    contentDescription: String? = stringResource(R.string.fab_create),
 ) {
     Box(
         modifier
@@ -656,4 +658,15 @@ fun EinkHint(text: String, modifier: Modifier = Modifier) {
         color = Eink.Graphite,
         modifier = modifier,
     )
+}
+
+/** "a moment ago", "12 min ago", "3 h ago": how long since [atMillis]. */
+@Composable
+fun relativeTime(atMillis: Long): String {
+    val minutes = (System.currentTimeMillis() - atMillis) / 60_000
+    return when {
+        minutes < 1 -> stringResource(R.string.time_just_now)
+        minutes < 60 -> stringResource(R.string.time_minutes_ago, minutes)
+        else -> stringResource(R.string.time_hours_ago, minutes / 60)
+    }
 }

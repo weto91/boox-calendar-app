@@ -2,6 +2,7 @@ package com.weto.booxcal.ink
 
 import android.content.Context
 import android.graphics.Typeface
+import androidx.annotation.StringRes
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.Typeface as ComposeTypeface
@@ -21,7 +22,7 @@ object InkFonts {
 
     class InkFont(
         val id: String,
-        val label: String,
+        @StringRes val label: Int,
         private val resource: Int?,
         private val systemFamily: String?,
         val family: FontFamily,
@@ -39,12 +40,12 @@ object InkFonts {
         FontFamily(ComposeTypeface(Typeface.create(name, Typeface.NORMAL)))
 
     val all: List<InkFont> = listOf(
-        InkFont("sans", "Sans", null, "sans-serif", FontFamily.SansSerif),
-        InkFont("serif", "Serif", null, "serif", FontFamily.Serif),
-        InkFont("condensed", "Sans estrecha", null, "sans-serif-condensed", systemFamily("sans-serif-condensed")),
-        InkFont("mono", "Monoespaciada", null, "monospace", FontFamily.Monospace),
-        InkFont("handmade", "Simple Handmade", R.font.simple_handmade, null, FontFamily(Font(R.font.simple_handmade))),
-        InkFont("learners", "Letters for Learners", R.font.letters_for_learners, null, FontFamily(Font(R.font.letters_for_learners))),
+        InkFont("sans", R.string.font_sans, null, "sans-serif", FontFamily.SansSerif),
+        InkFont("serif", R.string.font_serif, null, "serif", FontFamily.Serif),
+        InkFont("condensed", R.string.font_condensed, null, "sans-serif-condensed", systemFamily("sans-serif-condensed")),
+        InkFont("mono", R.string.font_mono, null, "monospace", FontFamily.Monospace),
+        InkFont("handmade", R.string.font_handmade, R.font.simple_handmade, null, FontFamily(Font(R.font.simple_handmade))),
+        InkFont("learners", R.string.font_learners, R.font.letters_for_learners, null, FontFamily(Font(R.font.letters_for_learners))),
     )
 
     fun byId(id: String?): InkFont = all.firstOrNull { it.id == id } ?: all.first()

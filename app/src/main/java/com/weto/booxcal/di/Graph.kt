@@ -43,6 +43,10 @@ object Graph {
     lateinit var applicationScope: CoroutineScope
         private set
 
+    /** The application context: for strings built off the main thread (sync results, widgets). */
+    lateinit var appContext: Context
+        private set
+
     /**
      * Ruta que la app tiene que abrir en cuanto pueda: la pone un widget al
      * tocarlo (llega en el Intent de la actividad) y la consume el NavHost.
@@ -102,6 +106,7 @@ object Graph {
         synchronized(this) {
             if (initialized) return
             val appContext = context.applicationContext
+            this.appContext = appContext
 
             applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
             // Antes de la base: la migración a v5 saca a fichero los cuadernos grandes.

@@ -19,6 +19,7 @@ import org.json.JSONObject
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
+import com.weto.booxcal.R
 
 /**
  * OAuth 2.0 + PKCE contra Google, vía AppAuth.
@@ -78,7 +79,7 @@ class GoogleAuthManager(context: Context) {
      */
     fun authorizationIntent(): Intent {
         check(isConfigured) {
-            "Falta GOOGLE_OAUTH_CLIENT_ID en local.properties. Ver docs/SETUP_GOOGLE.md"
+            appContext.getString(R.string.auth_no_client_id)
         }
         val request = AuthorizationRequest.Builder(
             serviceConfig,
@@ -109,9 +110,9 @@ class GoogleAuthManager(context: Context) {
     /** La vuelta del navegador: reconstruye la respuesta y canjea el código. */
     suspend fun handleRedirect(uri: Uri): Result<Unit> {
         val pending = prefs.getString(KEY_PENDING_REQUEST, null)
-            ?: return Result.failure(BackendAuthException("No había ninguna petición en curso"))
+            ?: return Result.failure(BackendAuthException(appContext.getString(R.string.auth_no_pending_request)))
         val request = runCatching { AuthorizationRequest.jsonDeserialize(pending) }
-            .getOrElse { return Result.failure(BackendAuthException("Petición guardada ilegible", it)) }
+            .getOrElse { return Result.failure(BackendAuthException(appContext.getString(R.string.auth_request_unreadable), it)) }
         prefs.edit().remove(KEY_PENDING_REQUEST).apply()
 
         // `fromOAuthRedirect` no devuelve null nunca: sin parámetro `error`
@@ -127,17 +128,17 @@ class GoogleAuthManager(context: Context) {
             null
         }
         if (response == null && error == null) {
-            return Result.failure(BackendAuthException("Google volvió sin código de autorización"))
+            return Result.failure(BackendAuthException(appContext.getString(R.string.auth_no_code)))
         }
         if (response != null && response.state != request.state) {
-            return Result.failure(BackendAuthException("La respuesta no corresponde a esta petición"))
+            return Result.failure(BackendAuthException(appContext.getString(R.string.auth_state_mismatch)))
         }
         return exchange(response, error)
     }
 
     /** Camino antiguo, por si el resultado llega por AppAuth. */
     suspend fun handleAuthorizationResult(data: Intent?): Result<Unit> {
-        if (data == null) return Result.failure(BackendAuthException("Autorización cancelada"))
+        if (data == null) return Result.failure(BackendAuthException(appContext.getString(R.string.auth_cancelled)))
         data.data?.takeIf { isRedirect(it) }?.let { return handleRedirect(it) }
         return exchange(AuthorizationResponse.fromIntent(data), AuthorizationException.fromIntent(data))
     }
@@ -152,7 +153,7 @@ class GoogleAuthManager(context: Context) {
             persist()
             return Result.failure(
                 BackendAuthException(
-                    error?.errorDescription ?: error?.error ?: "Autorización rechazada"
+                    error?.errorDescription ?: error?.error ?: appContext.getString(R.string.auth_rejected)
                 )
             )
         }
@@ -167,7 +168,7 @@ class GoogleAuthManager(context: Context) {
                     cont.resume(
                         Result.failure(
                             BackendAuthException(
-                                ex?.errorDescription ?: "No se pudo canjear el código", ex
+                                ex?.errorDescription ?: appContext.getString(R.string.auth_exchange_failed), ex
                             )
                         )
                     )
@@ -183,7 +184,7 @@ class GoogleAuthManager(context: Context) {
     @Throws(BackendAuthException::class)
     fun freshAccessTokenBlocking(): String {
         val state = authState
-        if (!state.isAuthorized) throw BackendAuthException("Sin cuenta de Google conectada")
+        if (!state.isAuthorized) throw BackendAuthException(appContext.getString(R.string.auth_no_account))
 
         val latch = CountDownLatch(1)
         var token: String? = null
@@ -196,12 +197,12 @@ class GoogleAuthManager(context: Context) {
         }
 
         if (!latch.await(TOKEN_TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
-            throw BackendAuthException("Tiempo agotado renovando el token")
+            throw BackendAuthException(appContext.getString(R.string.auth_refresh_timeout))
         }
         persist()
 
-        failure?.let { throw BackendAuthException(it.errorDescription ?: "Token no renovable", it) }
-        return token ?: throw BackendAuthException("Google no devolvió token de acceso")
+        failure?.let { throw BackendAuthException(it.errorDescription ?: appContext.getString(R.string.auth_token_not_renewable), it) }
+        return token ?: throw BackendAuthException(appContext.getString(R.string.auth_no_access_token))
     }
 
     /**

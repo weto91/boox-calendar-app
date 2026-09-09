@@ -31,6 +31,8 @@ import com.weto.booxcal.ui.theme.einkClickable
 import com.weto.booxcal.util.resolveDateTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
 
 private val hourFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("H:mm")
 
@@ -62,7 +64,7 @@ fun BannerEntry(
             .padding(horizontal = 6.dp, vertical = 3.dp)
     ) {
         Text(
-            text = row.event.title.ifBlank { "(sin título)" },
+            text = row.event.title.ifBlank { stringResource(R.string.common_untitled) },
             style = style,
             color = Eink.White,
             maxLines = 1,
@@ -99,7 +101,7 @@ fun TimedEntry(
             )
         }
         Text(
-            text = row.event.title.ifBlank { "(sin título)" },
+            text = row.event.title.ifBlank { stringResource(R.string.common_untitled) },
             style = style,
             color = Eink.Black,
             maxLines = 1,
@@ -134,15 +136,20 @@ fun TaskEntry(
         // La casilla crece con la letra: con texto mediano, un cuadradito de
         // 7 dp parecía una mota.
         val boxSize = if (style.fontSize.value >= 12f) 12.dp else 7.dp
+        // A completed task fades as a whole: the box goes grey with its text.
         Box(
             Modifier
                 .size(boxSize)
-                .border(if (boxSize > 8.dp) 1.5.dp else HairlineWidth, EinkPalette.forArgb(row.listColorArgb), RectangleShape)
+                .border(
+                    if (boxSize > 8.dp) 1.5.dp else HairlineWidth,
+                    if (completed) Eink.Slate else EinkPalette.forArgb(row.listColorArgb),
+                    RectangleShape,
+                )
                 .then(
                     if (completed) {
                         Modifier.drawBehind {
                             drawLine(
-                                color = Eink.Black,
+                                color = Eink.Slate,
                                 start = Offset(0f, 0f),
                                 end = Offset(size.width, size.height),
                                 strokeWidth = 1.dp.toPx(),
@@ -161,7 +168,7 @@ fun TaskEntry(
                 )
         )
         Text(
-            text = row.task.title.ifBlank { "(sin título)" },
+            text = row.task.title.ifBlank { stringResource(R.string.common_untitled) },
             style = style,
             color = if (completed) Eink.Slate else Eink.Black,
             textDecoration = if (completed) TextDecoration.LineThrough else null,

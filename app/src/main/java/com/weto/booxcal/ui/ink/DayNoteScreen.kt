@@ -51,6 +51,15 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
+import com.weto.booxcal.util.rememberDateFormat
+import com.weto.booxcal.util.rememberLocale
+import com.weto.booxcal.util.format
+import com.weto.booxcal.ink.NoteTemplates
+import com.weto.booxcal.ink.TemplateRef
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 data class DayNoteState(
     val noteId: Long? = null,
@@ -84,6 +93,8 @@ class DayNoteViewModel(
     private val anchorToDay: Boolean = true,
     /** Empezar una nota en blanco aunque el día ya tenga otras. */
     private val blank: Boolean = false,
+    /** Page template a new note starts from; null for a blank sheet. */
+    private val template: TemplateRef? = null,
     private val inkNoteRepository: InkNoteRepository = Graph.inkNoteRepository,
     private val settingsStore: SettingsStore = Graph.settings,
     private val syncScheduler: SyncScheduler = Graph.syncScheduler,
@@ -102,9 +113,17 @@ class DayNoteViewModel(
             val existing = requestedNoteId?.let { inkNoteRepository.loadNotebook(it)?.first }
                 ?: if (anchorToDay && !blank) inkNoteRepository.observeForDay(dayMillis).first().maxByOrNull { it.updatedAt } else null
             val loaded = existing?.let { inkNoteRepository.loadNotebook(it.id) }
+            // A new note from a template: its first page is the rendered
+            // template, and the notebook remembers it for the pages to come.
+            val fresh = if (existing == null && template != null) {
+                withContext(Dispatchers.IO) { NoteTemplates.pageDocument(template) }
+                    ?.let { page -> InkNotebook(pages = listOf(page), template = page.background) }
+            } else {
+                null
+            }
             _state.value = DayNoteState(
                 noteId = existing?.id,
-                notebook = loaded?.second ?: InkNotebook.EMPTY,
+                notebook = loaded?.second ?: fresh ?: InkNotebook.EMPTY,
                 recognizedText = existing?.recognizedText,
                 ocrLanguageTag = settings.ocrLanguageTag,
                 loading = false,
@@ -196,9 +215,6 @@ class DayNoteViewModel(
     }
 }
 
-private val dayLabel: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("EEEE d 'de' MMMM 'de' yyyy", Locale.getDefault())
-
 @Composable
 fun DayNoteScreen(
     dayMillis: Long,
@@ -214,10 +230,12 @@ fun DayNoteScreen(
     initialPage: Int = 0,
     /** Una hoja nueva del día, aunque haya otras (el «+» del widget). */
     blank: Boolean = false,
+    /** Page template for a new note; null for a blank sheet. */
+    template: TemplateRef? = null,
 ) {
     val viewModel: DayNoteViewModel = viewModel(
-        key = "daynote-$dayMillis-${noteId ?: 0}-${folderId ?: 0}-$anchorToDay-$blank",
-        factory = viewModelFactory { initializer { DayNoteViewModel(dayMillis, noteId, folderId, anchorToDay, blank) } },
+        key = "daynote-$dayMillis-${noteId ?: 0}-${folderId ?: 0}-$anchorToDay-$blank-${template?.path}-${template?.page}",
+        factory = viewModelFactory { initializer { DayNoteViewModel(dayMillis, noteId, folderId, anchorToDay, blank, template) } },
     )
     val state by viewModel.state.collectAsStateWithLifecycle()
     var acceptedText by remember { mutableStateOf<String?>(null) }
@@ -239,6 +257,8 @@ fun DayNoteScreen(
     }
 
     val date = LocalDate.ofEpochDay(Math.floorDiv(dayMillis, MILLIS_PER_DAY))
+    val dayLabel = rememberDateFormat(R.string.pattern_date_full)
+    val locale = rememberLocale()
 
     Column(modifier.fillMaxSize().background(Eink.White).padding(10.dp)) {
         Row(
@@ -246,13 +266,13 @@ fun DayNoteScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            EinkIconButton(Glyph.ChevronLeft, onClose, contentDescription = "Volver")
+            EinkIconButton(Glyph.ChevronLeft, onClose, contentDescription = stringResource(R.string.common_back))
             Text(
                 // Una nota sin día se presenta por su título; una del día, por la fecha.
                 text = if (state.loading || state.anchorDayMillis != null) {
-                    date.format(dayLabel).replaceFirstChar { it.titlecase(Locale.getDefault()) }
+                    date.format(dayLabel, capitalize = true, locale = locale)
                 } else {
-                    state.title?.takeIf { it.isNotBlank() } ?: "Nota"
+                    state.title?.takeIf { it.isNotBlank() } ?: stringResource(R.string.daynote_untitled)
                 },
                 style = MaterialTheme.typography.titleLarge,
                 color = Eink.Black,
@@ -262,7 +282,7 @@ fun DayNoteScreen(
                 EinkIconButton(
                     glyph = Glyph.Trash,
                     onClick = viewModel::discard,
-                    contentDescription = "Borrar la nota entera",
+                    contentDescription = stringResource(R.string.daynote_delete_whole),
                     accent = Accent.Today,
                 )
             }
@@ -270,7 +290,7 @@ fun DayNoteScreen(
         EinkDivider(color = Eink.Black)
 
         if (state.loading) {
-            EinkHint("Cargando…", Modifier.padding(16.dp))
+            EinkHint(stringResource(R.string.common_loading), Modifier.padding(16.dp))
             return@Column
         }
 
@@ -278,7 +298,7 @@ fun DayNoteScreen(
         (acceptedText ?: state.recognizedText)?.let { text ->
             // Una línea, no la nota entera: el texto completo se busca desde el buscador.
             val short = text.replace(InkNoteEntity.PAGE_BREAK, ' ').replace('\n', ' ').trim().let { if (it.length > 140) it.take(140) + "…" else it }
-            EinkHint("Transcripción: \"$short\"", Modifier.padding(vertical = 4.dp))
+            EinkHint(stringResource(R.string.daynote_transcription, short), Modifier.padding(vertical = 4.dp))
         }
 
         InkBoard(

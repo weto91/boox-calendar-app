@@ -32,6 +32,7 @@ import com.weto.booxcal.ui.theme.weekdayLabels
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.ZoneId
+import com.weto.booxcal.util.rememberLocale
 
 private val ENTRY_HEIGHT = 15.dp
 private val DAY_NUMBER_HEIGHT = 22.dp
@@ -60,7 +61,7 @@ fun MonthGrid(
                 .background(Eink.White)
                 .padding(vertical = 6.dp)
         ) {
-            weekdayLabels(state.weekStart).forEach { label ->
+            weekdayLabels(state.weekStart, locale = rememberLocale()).forEach { label ->
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelMedium,

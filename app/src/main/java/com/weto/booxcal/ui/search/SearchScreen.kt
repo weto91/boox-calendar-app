@@ -47,11 +47,10 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
+import com.weto.booxcal.util.rememberDateFormat
 
-private val stamp: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.getDefault())
-private val stampWithTime: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("dd MMM yyyy · HH:mm", Locale.getDefault())
 
 @Composable
 fun SearchScreen(
@@ -72,42 +71,40 @@ fun SearchScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            EinkIconButton(Glyph.ChevronLeft, onBack, contentDescription = "Volver")
+            EinkIconButton(Glyph.ChevronLeft, onBack, contentDescription = stringResource(R.string.common_back))
             EinkTextField(
                 value = state.query,
                 onValueChange = viewModel::setQuery,
-                placeholder = "Buscar eventos, tareas y notas",
+                placeholder = stringResource(R.string.search_placeholder),
                 modifier = Modifier.weight(1f),
             )
         }
         EinkDivider(color = Eink.Border)
 
         when {
-            state.query.length < MIN_QUERY_LENGTH -> Centered(
-                "Escribe al menos $MIN_QUERY_LENGTH caracteres."
-            )
+            state.query.length < MIN_QUERY_LENGTH -> Centered(stringResource(R.string.search_min_chars, MIN_QUERY_LENGTH))
 
-            state.searching -> Centered("Buscando…")
+            state.searching -> Centered(stringResource(R.string.search_searching))
 
-            state.isEmpty -> Centered("Nada coincide con «${state.query}».")
+            state.isEmpty -> Centered(stringResource(R.string.search_no_match, state.query))
 
             else -> LazyColumn(Modifier.fillMaxSize()) {
                 if (state.events.isNotEmpty()) {
-                    item { EinkSectionHeader("Eventos (${state.events.size})") }
+                    item { EinkSectionHeader(stringResource(R.string.search_events_count, state.events.size)) }
                     items(state.events, key = { "e-${it.event.id}" }) { row ->
                         EventResult(row, zone) { onOpenEvent(row.event.id) }
                         EinkDivider(Modifier.padding(horizontal = 14.dp))
                     }
                 }
                 if (state.tasks.isNotEmpty()) {
-                    item { EinkSectionHeader("Tareas (${state.tasks.size})") }
+                    item { EinkSectionHeader(stringResource(R.string.search_tasks_count, state.tasks.size)) }
                     items(state.tasks, key = { "t-${it.task.id}" }) { row ->
                         TaskResult(row) { onOpenTask(row.task.id) }
                         EinkDivider(Modifier.padding(horizontal = 14.dp))
                     }
                 }
                 if (state.notes.isNotEmpty()) {
-                    item { EinkSectionHeader("Notas manuscritas (${state.notes.size})") }
+                    item { EinkSectionHeader(stringResource(R.string.search_notes_count, state.notes.size)) }
                     items(state.notes, key = { "n-${it.id}" }) { note ->
                         NoteResult(note) { onOpenNote(note, note.pageOfMatch(state.query)) }
                         EinkDivider(Modifier.padding(horizontal = 14.dp))
@@ -129,6 +126,8 @@ private fun Centered(message: String) {
 @Composable
 private fun EventResult(row: EventWithCalendar, zone: ZoneId, onClick: () -> Unit) {
     val event = row.event
+    val stamp = rememberDateFormat(R.string.pattern_dd_month_year)
+    val stampWithTime = rememberDateFormat(R.string.pattern_stamp_dot)
     Row(
         Modifier
             .fillMaxWidth()
@@ -146,7 +145,7 @@ private fun EventResult(row: EventWithCalendar, zone: ZoneId, onClick: () -> Uni
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                text = event.title.ifBlank { "(sin título)" },
+                text = event.title.ifBlank { stringResource(R.string.common_untitled) },
                 style = MaterialTheme.typography.bodyLarge,
                 color = Eink.Black,
                 maxLines = 1,
@@ -157,7 +156,7 @@ private fun EventResult(row: EventWithCalendar, zone: ZoneId, onClick: () -> Uni
                     resolveDate(event.startMillis, true, zone).format(stamp)
                 } else {
                     resolveDateTime(event.startMillis, false, zone).format(stampWithTime)
-                } + "  ·  " + row.calendarName,
+                }.replace(".", "") + "  ·  " + row.calendarName,
                 style = MaterialTheme.typography.bodySmall,
                 color = Eink.Graphite,
                 maxLines = 1,
@@ -171,6 +170,7 @@ private fun EventResult(row: EventWithCalendar, zone: ZoneId, onClick: () -> Uni
 private fun TaskResult(row: TaskWithList, onClick: () -> Unit) {
     val task = row.task
     val completed = task.completedAt != null
+    val stamp = rememberDateFormat(R.string.pattern_dd_month_year)
     Row(
         Modifier
             .fillMaxWidth()
@@ -188,7 +188,7 @@ private fun TaskResult(row: TaskWithList, onClick: () -> Unit) {
         Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                text = task.title.ifBlank { "(sin título)" },
+                text = task.title.ifBlank { stringResource(R.string.common_untitled) },
                 style = MaterialTheme.typography.bodyLarge,
                 color = if (completed) Eink.Slate else Eink.Black,
                 textDecoration = if (completed) TextDecoration.LineThrough else null,
@@ -198,10 +198,10 @@ private fun TaskResult(row: TaskWithList, onClick: () -> Unit) {
             Text(
                 text = buildList {
                     task.dueDayMillis?.let {
-                        add(LocalDate.ofEpochDay(Math.floorDiv(it, MILLIS_PER_DAY)).format(stamp))
+                        add(LocalDate.ofEpochDay(Math.floorDiv(it, MILLIS_PER_DAY)).format(stamp).replace(".", ""))
                     }
                     add(row.listName)
-                    if (task.purged) add("purgada")
+                    if (task.purged) add(stringResource(R.string.search_purged))
                 }.joinToString("  ·  "),
                 style = MaterialTheme.typography.bodySmall,
                 color = Eink.Graphite,
@@ -217,6 +217,7 @@ private fun NoteResult(note: InkNoteEntity, onOpen: () -> Unit) {
     val anchorDate = note.anchorDayMillis?.let {
         LocalDate.ofEpochDay(Math.floorDiv(it, MILLIS_PER_DAY))
     }
+    val stamp = rememberDateFormat(R.string.pattern_dd_month_year)
     Column(
         Modifier
             .fillMaxWidth()
@@ -233,15 +234,15 @@ private fun NoteResult(note: InkNoteEntity, onOpen: () -> Unit) {
             )
         }
         Text(
-            text = note.recognizedFlat.orEmpty().ifBlank { "Nota manuscrita" },
+            text = note.recognizedFlat.orEmpty().ifBlank { stringResource(R.string.common_handwritten_note) },
             style = MaterialTheme.typography.bodyLarge,
             color = Eink.Black,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            text = anchorDate?.format(stamp)
-                ?: if (note.belongsToManager) "Cuaderno" else "Adjunta a un evento o tarea",
+            text = anchorDate?.format(stamp)?.replace(".", "")
+                ?: stringResource(if (note.belongsToManager) R.string.common_notebook else R.string.search_attached),
             style = MaterialTheme.typography.bodySmall,
             color = Eink.Graphite,
         )

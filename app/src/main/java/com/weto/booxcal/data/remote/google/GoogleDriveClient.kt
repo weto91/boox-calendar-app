@@ -23,6 +23,8 @@ import okio.ForwardingSink
 import okio.buffer
 import java.io.IOException
 import java.time.Instant
+import com.weto.booxcal.R
+import com.weto.booxcal.di.Graph
 
 @Serializable
 data class GDriveFile(
@@ -251,7 +253,7 @@ class GoogleDriveClient(
                 }
             }
         }.getOrNull()
-        return DriveException(response.code, reason ?: "Drive respondió ${response.code}")
+        return DriveException(response.code, reason ?: Graph.appContext.getString(R.string.drive_responded, response.code))
     }
 
     companion object {

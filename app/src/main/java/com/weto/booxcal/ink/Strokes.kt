@@ -126,10 +126,31 @@ data class InkDocument(
  * distingue los dos formatos al leer, así que las notas de antes siguen
  * abriéndose — como un cuaderno de una página.
  */
+@OptIn(ExperimentalSerializationApi::class)
 @Serializable
-data class InkNotebook(val pages: List<InkDocument> = listOf(InkDocument())) {
+data class InkNotebook(
+    val pages: List<InkDocument> = listOf(InkDocument()),
+    /**
+     * Background image (a [NoteStorage] name) every page added to this note
+     * starts with: the page template it was created from. Null for a plain
+     * note, and for imported PDFs, whose pages each carry their own image.
+     */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    val template: String? = null,
+) {
 
     val pageCount: Int get() = maxOf(pages.size, 1)
+
+    /** A fresh page for this note: blank, or with the template background at its size. */
+    fun newPage(): InkDocument {
+        val name = template ?: return InkDocument()
+        val model = pages.firstOrNull { it.background == name }
+        return InkDocument(
+            canvasWidth = model?.canvasWidth ?: 0f,
+            canvasHeight = model?.canvasHeight ?: 0f,
+            background = name,
+        )
+    }
 
     val isEmpty: Boolean get() = pages.all { it.isEmpty }
 
@@ -137,7 +158,7 @@ data class InkNotebook(val pages: List<InkDocument> = listOf(InkDocument())) {
 
     fun withPage(index: Int, document: InkDocument): InkNotebook {
         val grown = pages.toMutableList()
-        while (grown.size <= index) grown += InkDocument()
+        while (grown.size <= index) grown += newPage()
         grown[index] = document
         return copy(pages = grown)
     }
@@ -149,7 +170,7 @@ data class InkNotebook(val pages: List<InkDocument> = listOf(InkDocument())) {
      */
     fun trimmed(): InkNotebook {
         val last = pages.indexOfLast { !it.isEmpty }
-        return if (last < 0) InkNotebook(listOf(InkDocument())) else copy(pages = pages.take(last + 1))
+        return if (last < 0) copy(pages = listOf(newPage())) else copy(pages = pages.take(last + 1))
     }
 
     companion object {

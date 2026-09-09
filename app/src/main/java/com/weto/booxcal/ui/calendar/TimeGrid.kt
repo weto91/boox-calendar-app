@@ -46,6 +46,9 @@ import java.time.format.TextStyle as JavaTextStyle
 import java.util.Locale
 import kotlin.math.max
 import kotlin.math.min
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
+import com.weto.booxcal.util.rememberLocale
 
 private val HOUR_HEIGHT = 54.dp
 private val GUTTER_WIDTH = 50.dp
@@ -143,6 +146,7 @@ fun TimeGrid(
     modifier: Modifier = Modifier,
 ) {
     val today = LocalDate.now()
+    val locale = rememberLocale()
     val scroll = rememberScrollState()
     val density = LocalDensity.current
 
@@ -168,9 +172,9 @@ fun TimeGrid(
                     ) {
                         Text(
                             text = bucket.date.dayOfWeek
-                                .getDisplayName(JavaTextStyle.SHORT, Locale.getDefault())
+                                .getDisplayName(JavaTextStyle.SHORT, locale)
                                 .take(2)
-                                .uppercase(Locale.getDefault()),
+                                .uppercase(locale),
                             style = MaterialTheme.typography.labelSmall,
                             color = if (isSelected) Eink.White else Eink.Graphite,
                         )
@@ -213,7 +217,7 @@ fun TimeGrid(
                     contentAlignment = Alignment.TopEnd,
                 ) {
                     Text(
-                        text = "Todo\nel día",
+                        text = stringResource(R.string.timegrid_all_day),
                         style = MaterialTheme.typography.labelSmall,
                         color = Eink.Graphite,
                         textAlign = TextAlign.End,
@@ -367,7 +371,7 @@ private fun DayColumn(
             ) {
                 Column {
                     Text(
-                        text = item.row.event.title.ifBlank { "(sin título)" },
+                        text = item.row.event.title.ifBlank { stringResource(R.string.common_untitled) },
                         style = MaterialTheme.typography.labelMedium,
                         color = Eink.Black,
                         maxLines = 2,

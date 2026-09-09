@@ -1,5 +1,6 @@
 package com.weto.booxcal
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
@@ -28,6 +29,7 @@ import com.weto.booxcal.ui.theme.BooxCalTheme
 import com.weto.booxcal.ui.theme.Eink
 import com.weto.booxcal.ui.theme.EinkScaledDensity
 import com.weto.booxcal.ui.theme.EinkStatusStrip
+import com.weto.booxcal.util.AppLocale
 import com.weto.booxcal.widget.AgendaWidgets
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -36,6 +38,10 @@ import kotlinx.coroutines.withContext
 class MainActivity : ComponentActivity() {
 
     private lateinit var systemBars: WindowInsetsControllerCompat
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLocale.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -160,8 +166,8 @@ class MainActivity : ComponentActivity() {
                 Toast.makeText(
                     this@MainActivity,
                     result.fold(
-                        onSuccess = { "Cuenta de Google conectada. Sincronizando…" },
-                        onFailure = { "No se pudo conectar: ${it.message}" },
+                        onSuccess = { getString(R.string.account_connected_syncing) },
+                        onFailure = { getString(R.string.account_connect_failed, it.message) },
                     ),
                     Toast.LENGTH_LONG,
                 ).show()

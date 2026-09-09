@@ -37,11 +37,11 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import com.weto.booxcal.R
+import com.weto.booxcal.util.rememberDateFormat
+import com.weto.booxcal.util.rememberLocale
+import androidx.compose.runtime.remember
 
-private val weekdayName: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("EEEE", Locale.getDefault())
-private val fullDate: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.getDefault())
 
 private const val MAX_DOTS = 4
 
@@ -62,6 +62,9 @@ fun MiniMonthCard(
 ) {
     val today = LocalDate.now()
     val anchorMonth = YearMonth.from(state.anchor)
+    val locale = rememberLocale()
+    val weekdayName = remember(locale) { DateTimeFormatter.ofPattern("EEEE", locale) }
+    val fullDate = rememberDateFormat(R.string.pattern_dd_month_year)
 
     Column(modifier.fillMaxSize().padding(horizontal = 14.dp, vertical = 12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -73,12 +76,12 @@ fun MiniMonthCard(
             Column(Modifier.padding(start = 14.dp)) {
                 Text(
                     text = state.selected.format(weekdayName)
-                        .replaceFirstChar { it.titlecase(Locale.getDefault()) },
+                        .replaceFirstChar { it.titlecase(locale) },
                     style = MaterialTheme.typography.titleMedium,
                     color = Eink.Black,
                 )
                 Text(
-                    text = state.selected.format(fullDate),
+                    text = state.selected.format(fullDate).replace(".", ""),
                     style = MaterialTheme.typography.bodyMedium,
                     color = Eink.Graphite,
                 )
@@ -88,7 +91,7 @@ fun MiniMonthCard(
         Spacer(Modifier.height(10.dp))
 
         Row(Modifier.fillMaxWidth()) {
-            weekdayLabels(state.weekStart).forEach { label ->
+            weekdayLabels(state.weekStart, locale = locale).forEach { label ->
                 Text(
                     text = label,
                     // Un punto más grandes y en negrita: a este tamaño en e-ink

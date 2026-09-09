@@ -13,6 +13,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.time.DayOfWeek
+import java.util.Locale
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "booxcal_settings")
 
@@ -40,7 +41,8 @@ data class AppSettings(
     val inkBallpointPressure: Int = 50,
     /** "auto", "sdk" o "touch". Ver [com.weto.booxcal.ink.PenMode]. */
     val penMode: String = "auto",
-    val ocrLanguageTag: String = "es",
+    /** Handwriting recognition language. Defaults to the device (or app) language. */
+    val ocrLanguageTag: String = defaultOcrLanguage(),
     /** Letra del texto transcrito. Ver [com.weto.booxcal.ink.InkFonts]. */
     val inkTextFont: String = "sans",
     /**
@@ -74,6 +76,9 @@ data class AppSettings(
 
     companion object {
         const val NEVER_PURGE = -1
+
+        /** The language of the default locale ("es", "en"…): what the user most likely writes in. */
+        fun defaultOcrLanguage(): String = Locale.getDefault().language.ifBlank { "en" }
     }
 }
 

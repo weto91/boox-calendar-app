@@ -46,8 +46,12 @@ import com.weto.booxcal.util.MILLIS_PER_DAY
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
+import com.weto.booxcal.domain.usecase.SectionKind
+import com.weto.booxcal.domain.usecase.TaskSection
+import com.weto.booxcal.util.rememberDateFormat
 
-private val dueFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
 
 @Composable
 fun TasksScreen(
@@ -68,9 +72,9 @@ fun TasksScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            EinkIconButton(Glyph.ChevronLeft, onBack, contentDescription = "Volver")
+            EinkIconButton(Glyph.ChevronLeft, onBack, contentDescription = stringResource(R.string.common_back))
             Text(
-                text = "Tareas",
+                text = stringResource(R.string.common_tasks),
                 style = MaterialTheme.typography.headlineSmall,
                 color = Eink.Black,
                 modifier = Modifier.weight(1f).padding(start = 6.dp),
@@ -78,11 +82,11 @@ fun TasksScreen(
             EinkIconButton(
                 glyph = Glyph.SyncCloud,
                 onClick = viewModel::syncNow,
-                contentDescription = "Sincronizar",
+                contentDescription = stringResource(R.string.common_sync),
                 enabled = !state.syncing,
                 accent = Accent.Sync,
             )
-            EinkIconButton(Glyph.Plus, onNewTask, contentDescription = "Recordatorio nuevo", accent = Accent.Reminder)
+            EinkIconButton(Glyph.Plus, onNewTask, contentDescription = stringResource(R.string.common_new_reminder), accent = Accent.Reminder)
         }
 
         Row(
@@ -98,26 +102,28 @@ fun TasksScreen(
                         TaskGrouping.BY_LIST -> Glyph.Bullets
                     },
                     onClick = { viewModel.setGrouping(grouping) },
-                    contentDescription = grouping.label,
+                    contentDescription = stringResource(
+                        if (grouping == TaskGrouping.BY_DATE) R.string.tasks_group_by_date else R.string.tasks_group_by_list
+                    ),
                     selected = state.grouping == grouping,
                     accent = Accent.Reminder,
                 )
             }
             Spacer(Modifier.weight(1f))
-            EinkHint("${state.pendingCount} pendientes")
+            EinkHint(stringResource(R.string.tasks_pending_count, state.pendingCount))
         }
         EinkDivider(color = Eink.Black)
 
         if (state.sections.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                EinkHint("No hay tareas. Sincroniza o crea una nueva.")
+                EinkHint(stringResource(R.string.tasks_empty))
             }
             return@Column
         }
 
         LazyColumn(Modifier.fillMaxSize()) {
             state.sections.forEach { section ->
-                item(key = "header-${section.title}") {
+                item(key = "header-${section.kind}-${section.title}") {
                     if (section.completed) {
                         // La sección de completadas se pliega: con el tiempo es
                         // la más larga y no es la que se viene a consultar.
@@ -135,14 +141,14 @@ fun TasksScreen(
                             )
                             Spacer(Modifier.width(6.dp))
                             Text(
-                                text = "${section.title} (${section.tasks.size})",
+                                text = "${sectionTitle(section)} (${section.tasks.size})",
                                 style = MaterialTheme.typography.labelLarge,
                                 color = Eink.Graphite,
                             )
                         }
                     } else {
                         EinkSectionHeader(
-                            title = section.title,
+                            title = sectionTitle(section),
                             trailing = {
                                 Text(
                                     text = section.tasks.size.toString(),
@@ -179,13 +185,25 @@ fun TasksScreen(
     }
 }
 
+@Composable
 private fun retentionCaption(retentionDays: Int): String =
     if (retentionDays < 0) {
-        "Las tareas completadas no se purgan nunca."
+        stringResource(R.string.tasks_retention_never)
     } else {
-        "Las tareas completadas se ocultan $retentionDays días después de completarse " +
-            "(o de vencer, lo que sea más tarde)."
+        stringResource(R.string.tasks_retention_days, retentionDays)
     }
+
+@Composable
+private fun sectionTitle(section: TaskSection): String = when (section.kind) {
+    SectionKind.OVERDUE -> stringResource(R.string.section_overdue)
+    SectionKind.TODAY -> stringResource(R.string.section_today)
+    SectionKind.TOMORROW -> stringResource(R.string.section_tomorrow)
+    SectionKind.THIS_WEEK -> stringResource(R.string.section_this_week)
+    SectionKind.LATER -> stringResource(R.string.section_later)
+    SectionKind.UNDATED -> stringResource(R.string.section_undated)
+    SectionKind.COMPLETED -> stringResource(R.string.section_completed)
+    SectionKind.LIST -> section.title
+}
 
 @Composable
 private fun TaskRow(
@@ -212,17 +230,18 @@ private fun TaskRow(
 
         Column(Modifier.weight(1f).padding(horizontal = 6.dp, vertical = 6.dp)) {
             Text(
-                text = task.title.ifBlank { "(sin título)" },
+                text = task.title.ifBlank { stringResource(R.string.common_untitled) },
                 style = MaterialTheme.typography.bodyLarge,
                 color = if (completed) Eink.Slate else Eink.Black,
                 textDecoration = if (completed) TextDecoration.LineThrough else null,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+            val dueFormatter = rememberDateFormat(R.string.pattern_day_month)
             val meta = buildList {
-                task.dueDayMillis?.let { add(formatDue(it, overdue)) }
+                task.dueDayMillis?.let { add(formatDue(it, overdue, dueFormatter)) }
                 add(row.listName)
-                if (!task.notes.isNullOrBlank()) add("· nota")
+                if (!task.notes.isNullOrBlank()) add(stringResource(R.string.tasks_meta_note))
             }.joinToString("  ·  ")
             if (meta.isNotBlank()) {
                 Text(
@@ -237,21 +256,22 @@ private fun TaskRow(
 
         if (canMoveUp || canMoveDown) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (canMoveUp) EinkIconButton(Glyph.ChevronUp, onMoveUp, contentDescription = "Subir", box = 40.dp)
-                if (canMoveDown) EinkIconButton(Glyph.ChevronDown, onMoveDown, contentDescription = "Bajar", box = 40.dp)
+                if (canMoveUp) EinkIconButton(Glyph.ChevronUp, onMoveUp, contentDescription = stringResource(R.string.tasks_move_up), box = 40.dp)
+                if (canMoveDown) EinkIconButton(Glyph.ChevronDown, onMoveDown, contentDescription = stringResource(R.string.tasks_move_down), box = 40.dp)
             }
         }
     }
 }
 
-private fun formatDue(dueDayMillis: Long, overdue: Boolean): String {
+@Composable
+private fun formatDue(dueDayMillis: Long, overdue: Boolean, dueFormatter: DateTimeFormatter): String {
     val date = LocalDate.ofEpochDay(Math.floorDiv(dueDayMillis, MILLIS_PER_DAY))
     val today = LocalDate.now()
     val label = when (date) {
-        today -> "hoy"
-        today.plusDays(1) -> "mañana"
-        today.minusDays(1) -> "ayer"
-        else -> date.format(dueFormatter)
+        today -> stringResource(R.string.tasks_today_lower)
+        today.plusDays(1) -> stringResource(R.string.tasks_tomorrow_lower)
+        today.minusDays(1) -> stringResource(R.string.tasks_yesterday_lower)
+        else -> date.format(dueFormatter).replace(".", "")
     }
-    return if (overdue) "vencía $label" else label
+    return if (overdue) stringResource(R.string.tasks_was_due, label) else label
 }

@@ -49,9 +49,12 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
+import com.weto.booxcal.util.rememberDateFormat
+import com.weto.booxcal.util.rememberLocale
 
 private val clock: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-private val dayLabel: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM", Locale.getDefault())
 
 /** Filas por página. Los rótulos de grupo cuentan como fila: son más bajos, pero ocupan. */
 private const val PAGE_SIZE = 5
@@ -86,18 +89,21 @@ fun ColumnScope.DayItemsCard(
     onOpenNote: (InkNoteEntity) -> Unit,
     onNewEvent: () -> Unit,
 ) {
-    val items = remember(events, tasks, notes) {
+    val eventsLabel = stringResource(R.string.common_events)
+    val remindersLabel = stringResource(R.string.common_reminders)
+    val notesLabel = stringResource(R.string.common_notes)
+    val items = remember(events, tasks, notes, eventsLabel) {
         buildList {
             if (events.isNotEmpty()) {
-                add(DayItem.Header("Eventos", events.size))
+                add(DayItem.Header(eventsLabel, events.size))
                 events.forEach { add(DayItem.Event(it)) }
             }
             if (tasks.isNotEmpty()) {
-                add(DayItem.Header("Recordatorios", tasks.size))
+                add(DayItem.Header(remindersLabel, tasks.size))
                 tasks.forEach { add(DayItem.Task(it)) }
             }
             if (notes.isNotEmpty()) {
-                add(DayItem.Header("Notas", notes.size))
+                add(DayItem.Header(notesLabel, notes.size))
                 notes.forEach { add(DayItem.Note(it)) }
             }
         }
@@ -108,7 +114,7 @@ fun ColumnScope.DayItemsCard(
     val current = page.coerceIn(0, pageCount - 1)
 
     EinkCardHeader(
-        title = "Elementos del día ${date.format(dayLabel).replace(".", "")}",
+        title = stringResource(R.string.day_items_title, date.format(rememberDateFormat(R.string.pattern_day_month)).replace(".", "")),
         trailing = {
             Text(
                 text = if (total == 0) "" else "$total",
@@ -123,13 +129,13 @@ fun ColumnScope.DayItemsCard(
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = "Nada este día",
+                        text = stringResource(R.string.day_items_empty),
                         style = MaterialTheme.typography.bodyLarge,
                         color = Eink.Graphite,
                     )
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "Añadir evento",
+                        text = stringResource(R.string.day_items_add_event),
                         style = MaterialTheme.typography.titleMedium,
                         color = Eink.Black,
                         modifier = Modifier
@@ -202,7 +208,7 @@ private fun GroupLabel(title: String, count: Int) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = title.uppercase(Locale.getDefault()),
+            text = title.uppercase(rememberLocale()),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = FontWeight.Bold,
             color = Eink.Graphite,
@@ -256,12 +262,12 @@ private fun EventRow(row: EventWithCalendar, zone: ZoneId, onClick: () -> Unit) 
         Column(Modifier.width(46.dp)) {
             if (event.allDay) {
                 Text(
-                    text = "Todo",
+                    text = stringResource(R.string.day_items_all),
                     style = MaterialTheme.typography.labelLarge,
                     color = Eink.Black,
                 )
                 Text(
-                    text = "el día",
+                    text = stringResource(R.string.day_items_day),
                     style = MaterialTheme.typography.labelSmall,
                     color = Eink.Graphite,
                 )
@@ -281,7 +287,7 @@ private fun EventRow(row: EventWithCalendar, zone: ZoneId, onClick: () -> Unit) 
         Spacer(Modifier.width(8.dp))
 
         Text(
-            text = event.title.ifBlank { "(sin título)" },
+            text = event.title.ifBlank { stringResource(R.string.common_untitled) },
             style = MaterialTheme.typography.bodyLarge,
             color = Eink.Black,
             maxLines = 2,
@@ -308,7 +314,7 @@ private fun TaskRow(row: TaskWithList, onToggle: (Boolean) -> Unit, onClick: () 
         Spacer(Modifier.width(4.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                text = task.title.ifBlank { "(sin título)" },
+                text = task.title.ifBlank { stringResource(R.string.common_untitled) },
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = if (completed) Eink.Slate else Eink.Black,
@@ -341,7 +347,7 @@ private fun NoteRow(note: InkNoteEntity, zone: ZoneId, onClick: () -> Unit) {
     val time = Instant.ofEpochMilli(note.updatedAt).atZone(zone).toLocalTime().format(clock)
     val title = note.title?.takeIf { it.isNotBlank() }
         ?: note.recognizedFlat?.lineSequence()?.map { it.trim() }?.firstOrNull { it.isNotEmpty() }
-        ?: "Nota de las $time"
+        ?: stringResource(R.string.note_at_time, time)
 
     Row(
         Modifier

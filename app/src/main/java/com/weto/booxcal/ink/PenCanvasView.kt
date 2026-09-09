@@ -838,7 +838,12 @@ class PenCanvasView @JvmOverloads constructor(
         //    deja: puede ser una marca o un trazo de un dibujo, y perder una
         //    letra es más barato que perder un dibujo.
         val segments = mutableListOf<Pair<List<Int>, RectF>>()
-        rows.forEach { row ->
+        // Which row each segment came from: the reading order is row by row
+        // and, inside a row, left to right. Sorting by the exact top of each
+        // segment instead put "aplicación" (tall ascender) before "Esta es
+        // una" on the same line, and the sentence came out shuffled.
+        val rowOf = HashMap<Pair<List<Int>, RectF>, Int>()
+        rows.forEachIndexed { rowIndex, row ->
             val sorted = row.members.sortedBy { it.bounds.left }
             var segment = mutableListOf<Blob>()
             var right = Float.NEGATIVE_INFINITY
@@ -849,7 +854,11 @@ class PenCanvasView @JvmOverloads constructor(
                     val strokesInSegment = segment.sumOf { it.n }
                     val wordy = !guessDrawings || segment.size >= 2 || strokesInSegment >= 2 ||
                         bounds.width() / bounds.height().coerceAtLeast(1f) >= 1.2f
-                    if (wordy) segments += segment.flatMap { it.strokeIndices } to bounds
+                    if (wordy) {
+                        val entry = segment.flatMap { it.strokeIndices } to bounds
+                        segments += entry
+                        rowOf[entry] = rowIndex
+                    }
                 }
                 segment = mutableListOf()
                 right = Float.NEGATIVE_INFINITY
@@ -884,8 +893,8 @@ class PenCanvasView @JvmOverloads constructor(
         closeGroup()
 
         return segments
+            .sortedWith(compareBy({ rowOf[it] ?: 0 }, { it.second.left }))
             .map { (indices, bounds) -> TextLine(indices, bounds, sizeOf[indices to bounds] ?: bounds.height() * TEXT_HEIGHT_FACTOR) }
-            .sortedWith(compareBy({ it.bounds.top }, { it.bounds.left }))
     }
 
     /** Solo los trazos de un renglón, como documento aparte (para el OCR). */
@@ -1264,13 +1273,15 @@ class PenCanvasView @JvmOverloads constructor(
                     .openRawDrawing()
                 existing.setStrokeStyle(currentStrokeStyle())
             }
-            // Tras reabrir no se sabe en qué estado quedó; se vuelve a fijar,
-            // salvo que haya una reactivación con retardo en marcha, que ya
-            // lo dejará como toca cuando dispare.
-            if (!resumeScheduled) {
-                rawActive = false
-                syncRawEnabled()
-            }
+            // Reopening leaves the SDK capturing the pen. That is wrong while
+            // the pen is paused (a creation window on top, the keyboard just
+            // resized the screen): the stylus then never reached the text
+            // field and only a finger could place the caret. So the capture
+            // is switched off explicitly and put back only if it is wanted,
+            // now or by the delayed resume already on its way.
+            runCatching { existing.setRawDrawingEnabled(false) }
+            rawActive = false
+            if (!resumeScheduled) syncRawEnabled()
             appliedRect = screenRect()
             diagnostics = diagnostics.copy(limitRect = limit.shortString())
             report()

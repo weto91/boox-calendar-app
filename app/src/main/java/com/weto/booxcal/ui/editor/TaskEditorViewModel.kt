@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import com.weto.booxcal.R
 
 data class TaskForm(
     val id: Long? = null,
@@ -133,7 +134,7 @@ class TaskEditorViewModel(
             }.onSuccess {
                 _form.value = _form.value.copy(saved = true)
             }.onFailure { t ->
-                _form.value = _form.value.copy(error = t.message ?: "No se pudo guardar")
+                _form.value = _form.value.copy(error = t.message ?: Graph.appContext.getString(R.string.editor_save_failed))
             }
         }
     }

@@ -4,13 +4,15 @@ import com.weto.booxcal.data.local.dao.TaskWithList
 import com.weto.booxcal.util.MILLIS_PER_DAY
 import java.time.LocalDate
 
-enum class TaskGrouping(val label: String) {
-    BY_DATE("Por fecha"),
-    BY_LIST("Por lista"),
-}
+enum class TaskGrouping { BY_DATE, BY_LIST }
+
+/** What a section is; the screen puts the words to it. [LIST] carries the list name in [TaskSection.title]. */
+enum class SectionKind { OVERDUE, TODAY, TOMORROW, THIS_WEEK, LATER, UNDATED, COMPLETED, LIST }
 
 data class TaskSection(
-    val title: String,
+    val kind: SectionKind,
+    /** The list name for [SectionKind.LIST]; empty otherwise. */
+    val title: String = "",
     val tasks: List<TaskWithList>,
     /** Las completadas se pintan tachadas y al final (§7). */
     val completed: Boolean = false,
@@ -33,7 +35,7 @@ fun buildTaskSections(
         TaskGrouping.BY_LIST -> pending
             .groupBy { it.listName }
             .toSortedMap(String.CASE_INSENSITIVE_ORDER)
-            .map { (name, items) -> TaskSection(name, items.sortedWith(pendingOrder)) }
+            .map { (name, items) -> TaskSection(SectionKind.LIST, name, items.sortedWith(pendingOrder)) }
 
         TaskGrouping.BY_DATE -> {
             val todayMillis = today.toEpochDay() * MILLIS_PER_DAY
@@ -54,18 +56,18 @@ fun buildTaskSections(
             val undated = pending.filter { it.task.dueDayMillis == null }
 
             listOf(
-                TaskSection("Atrasadas", overdue.sortedWith(pendingOrder), overdue = true),
-                TaskSection("Hoy", dueToday.sortedWith(pendingOrder)),
-                TaskSection("Mañana", dueTomorrow.sortedWith(pendingOrder)),
-                TaskSection("Esta semana", thisWeek.sortedWith(pendingOrder)),
-                TaskSection("Más adelante", later.sortedWith(pendingOrder)),
-                TaskSection("Sin fecha", undated.sortedWith(pendingOrder)),
+                TaskSection(SectionKind.OVERDUE, tasks = overdue.sortedWith(pendingOrder), overdue = true),
+                TaskSection(SectionKind.TODAY, tasks = dueToday.sortedWith(pendingOrder)),
+                TaskSection(SectionKind.TOMORROW, tasks = dueTomorrow.sortedWith(pendingOrder)),
+                TaskSection(SectionKind.THIS_WEEK, tasks = thisWeek.sortedWith(pendingOrder)),
+                TaskSection(SectionKind.LATER, tasks = later.sortedWith(pendingOrder)),
+                TaskSection(SectionKind.UNDATED, tasks = undated.sortedWith(pendingOrder)),
             )
         }
     }
 
     val completedSection = TaskSection(
-        title = "Completadas",
+        kind = SectionKind.COMPLETED,
         tasks = done.sortedByDescending { it.task.completedAt ?: 0L },
         completed = true,
     )

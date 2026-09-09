@@ -48,6 +48,10 @@ import com.weto.booxcal.ui.theme.einkClickable
 import java.util.Locale
 import java.util.Random
 import kotlin.math.roundToInt
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
+import androidx.annotation.StringRes
+import com.weto.booxcal.util.rememberLocale
 
 /**
  * El panel de la pluma, calcado del de Boox Notes pero como ventana: una
@@ -91,7 +95,7 @@ private fun PanelSections(tools: InkTools, onTools: (InkTools) -> Unit) {
     // Título: la punta y su grosor, con la bombilla de volver a lo de fábrica.
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            text = "${tipName(tip)} ${formatMm(tools.widthMm)}",
+            text = "${stringResource(tipName(tip))} ${formatMm(tools.widthMm)}",
             style = MaterialTheme.typography.titleMedium,
             color = Eink.Black,
         )
@@ -99,7 +103,7 @@ private fun PanelSections(tools: InkTools, onTools: (InkTools) -> Unit) {
         EinkIconButton(
             glyph = Glyph.Bulb,
             onClick = { onTools(tools.resetActive()) },
-            contentDescription = "Volver a lo de fábrica",
+            contentDescription = stringResource(R.string.pen_reset),
             box = 36.dp,
             size = 20.dp,
         )
@@ -112,7 +116,7 @@ private fun PanelSections(tools: InkTools, onTools: (InkTools) -> Unit) {
         verticalAlignment = Alignment.Top,
     ) {
         INK_TIPS.forEach { (candidate, glyph, name) ->
-            Marked(selected = tip == candidate, onClick = { onTools(tools.withTool(candidate)) }, label = name) {
+            Marked(selected = tip == candidate, onClick = { onTools(tools.withTool(candidate)) }, label = stringResource(name)) {
                 EinkGlyph(glyph, size = 36.dp)
             }
         }
@@ -121,13 +125,13 @@ private fun PanelSections(tools: InkTools, onTools: (InkTools) -> Unit) {
 
     when (tip) {
         PenTool.PENCIL -> {
-            SectionTitle("Textura")
+            SectionTitle(stringResource(R.string.pen_texture))
             Row(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 listOf(0, 1).forEach { texture ->
                     Marked(
                         selected = tools.pencilTexture == texture,
                         onClick = { onTools(tools.copy(pencilTexture = texture)) },
-                        label = if (texture == 0) "Textura 1" else "Textura 2",
+                        label = stringResource(R.string.pen_texture_n, texture + 1),
                     ) {
                         TextureSwatch(texture)
                     }
@@ -158,8 +162,8 @@ private fun PanelSections(tools: InkTools, onTools: (InkTools) -> Unit) {
 private fun WidthSection(tools: InkTools, onTools: (InkTools) -> Unit) {
     val range = tools.widthRange
     Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        SectionTitle("Ancho de línea", Modifier.weight(1f))
-        StepButton(Glyph.ChevronLeft, "Más fino") { onTools(tools.withWidthMm(tools.widthMm - InkTools.STEP_MM)) }
+        SectionTitle(stringResource(R.string.pen_line_width), Modifier.weight(1f))
+        StepButton(Glyph.ChevronLeft, stringResource(R.string.pen_thinner)) { onTools(tools.withWidthMm(tools.widthMm - InkTools.STEP_MM)) }
         Text(
             text = formatMm(tools.widthMm),
             style = MaterialTheme.typography.titleMedium,
@@ -167,7 +171,7 @@ private fun WidthSection(tools: InkTools, onTools: (InkTools) -> Unit) {
             textAlign = TextAlign.Center,
             modifier = Modifier.width(84.dp),
         )
-        StepButton(Glyph.ChevronRight, "Más grueso") { onTools(tools.withWidthMm(tools.widthMm + InkTools.STEP_MM)) }
+        StepButton(Glyph.ChevronRight, stringResource(R.string.pen_thicker)) { onTools(tools.withWidthMm(tools.widthMm + InkTools.STEP_MM)) }
     }
     val fraction = ((tools.widthMm - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
     WidthCone(
@@ -222,7 +226,7 @@ private fun WidthCone(fraction: Float, onFraction: (Float) -> Unit, modifier: Mo
 @Composable
 private fun PressureSection(tools: InkTools, onTools: (InkTools) -> Unit) {
     Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        SectionTitle("Sensibilidad a la presión", Modifier.weight(1f))
+        SectionTitle(stringResource(R.string.pen_pressure), Modifier.weight(1f))
         Text(
             text = "${tools.pressure} %",
             style = MaterialTheme.typography.titleMedium,
@@ -279,9 +283,9 @@ private fun TickSlider(value: Int, onValue: (Int) -> Unit, modifier: Modifier = 
 private fun ColorsSection(tools: InkTools, onTools: (InkTools) -> Unit) {
     val current = INK_COLORS.firstOrNull { it.argb == tools.activeColorArgb }
     Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        SectionTitle("Colores", Modifier.weight(1f))
+        SectionTitle(stringResource(R.string.pen_colors), Modifier.weight(1f))
         Text(
-            text = "${current?.name ?: "Color"}(#${"%08X".format(tools.activeColorArgb)})",
+            text = "${current?.let { stringResource(it.name) } ?: stringResource(R.string.pen_color)} (#${"%08X".format(tools.activeColorArgb)})",
             style = MaterialTheme.typography.titleMedium,
             color = Eink.Black,
         )
@@ -295,7 +299,7 @@ private fun ColorsSection(tools: InkTools, onTools: (InkTools) -> Unit) {
                 Marked(
                     selected = tools.activeColorArgb == color.argb,
                     onClick = { onTools(tools.withColor(color.argb)) },
-                    label = color.name,
+                    label = stringResource(color.name),
                 ) {
                     ColorDot(color)
                 }
@@ -405,10 +409,12 @@ private fun StepButton(glyph: Glyph, description: String, onClick: () -> Unit) {
     }
 }
 
-private fun tipName(tool: PenTool): String = INK_TIPS.firstOrNull { it.first == tool }?.third ?: "Pluma"
+@StringRes
+private fun tipName(tool: PenTool): Int = INK_TIPS.firstOrNull { it.first == tool }?.third ?: R.string.pen_pen
 
-/** «0,15mm», con coma como en el panel de Boox. */
-internal fun formatMm(mm: Float): String = String.format(Locale.forLanguageTag("es"), "%.2fmm", mm)
+/** "0.15mm", with the decimal separator of the app language. */
+@Composable
+internal fun formatMm(mm: Float): String = String.format(rememberLocale(), "%.2fmm", mm)
 
 private val PanelCorner = RoundedCornerShape(14.dp)
 

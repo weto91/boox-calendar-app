@@ -47,7 +47,7 @@ object WidgetViews {
         val views = RemoteViews(context.packageName, R.layout.widget_list)
         views.setTextViewText(R.id.widget_title, summary.title)
         views.setTextViewText(R.id.widget_subtitle, summary.subtitle)
-        views.setTextViewText(R.id.widget_empty, emptyText(kind))
+        views.setTextViewText(R.id.widget_empty, emptyText(context, kind))
         // La cabecera lleva al sitio que resume: la portada, el día o la semana.
         val today = LocalDate.now()
         val headerRoute = when (kind) {
@@ -59,8 +59,8 @@ object WidgetViews {
 
         // El botón de la cabecera: hoja nueva en las notas, nuevo evento en el resto.
         val (actionIcon, actionRoute, actionLabel) = when (kind) {
-            WidgetKind.NOTES -> Triple(R.drawable.ic_widget_plus, Routes.dayNoteBlank(today), "Hoja nueva")
-            else -> Triple(R.drawable.ic_widget_plus, Routes.event(date = today), "Evento nuevo")
+            WidgetKind.NOTES -> Triple(R.drawable.ic_widget_plus, Routes.dayNoteBlank(today), context.getString(R.string.common_new_sheet))
+            else -> Triple(R.drawable.ic_widget_plus, Routes.event(date = today), context.getString(R.string.common_new_event))
         }
         views.setImageViewResource(R.id.widget_action, actionIcon)
         views.setContentDescription(R.id.widget_action, actionLabel)
@@ -78,7 +78,7 @@ object WidgetViews {
     private fun searchList(context: Context, appWidgetId: Int): RemoteViews {
         val views = RemoteViews(context.packageName, R.layout.widget_search)
         views.setOnClickPendingIntent(R.id.widget_search_bar, AgendaWidgets.openRoute(context, Routes.SEARCH, request(WidgetKind.SEARCH, 1)))
-        views.setTextViewText(R.id.widget_empty, emptyText(WidgetKind.SEARCH))
+        views.setTextViewText(R.id.widget_empty, emptyText(context, WidgetKind.SEARCH))
         bindList(context, views, appWidgetId, WidgetKind.SEARCH)
         return views
     }
@@ -98,12 +98,14 @@ object WidgetViews {
         views.setPendingIntentTemplate(R.id.widget_list, AgendaWidgets.openTemplate(context, request(kind, 3)))
     }
 
-    private fun emptyText(kind: WidgetKind) = when (kind) {
-        WidgetKind.TODAY, WidgetKind.AGENDA -> "Nada previsto para hoy"
-        WidgetKind.WEEK -> "Nada esta semana"
-        WidgetKind.NOTES -> "Sin notas hoy. Toca + para empezar una."
-        WidgetKind.SEARCH -> "Aún no hay notas con texto indexado"
-    }
+    private fun emptyText(context: Context, kind: WidgetKind) = context.getString(
+        when (kind) {
+            WidgetKind.TODAY, WidgetKind.AGENDA -> R.string.widget_empty_today
+            WidgetKind.WEEK -> R.string.widget_empty_week
+            WidgetKind.NOTES -> R.string.widget_empty_notes
+            WidgetKind.SEARCH -> R.string.widget_empty_search
+        }
+    )
 
     // --- Pequeños --------------------------------------------------------------
 
@@ -145,7 +147,7 @@ object WidgetViews {
         val views = RemoteViews(context.packageName, R.layout.widget_notes_small)
         val today = LocalDate.now()
         views.setTextViewText(R.id.widget_count, summary.noteCount.toString())
-        views.setTextViewText(R.id.widget_subtitle, if (summary.noteCount == 1) "nota hoy" else "notas hoy")
+        views.setTextViewText(R.id.widget_subtitle, context.getString(if (summary.noteCount == 1) R.string.widget_note_today_one else R.string.widget_note_today_many))
         views.setOnClickPendingIntent(R.id.widget_root, AgendaWidgets.openRoute(context, Routes.dayNote(today), request(WidgetKind.NOTES, 4)))
         views.setOnClickPendingIntent(R.id.widget_action, AgendaWidgets.openRoute(context, Routes.dayNoteBlank(today), request(WidgetKind.NOTES, 2)))
         return views

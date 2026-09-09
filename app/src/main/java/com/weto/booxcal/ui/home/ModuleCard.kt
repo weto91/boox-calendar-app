@@ -67,9 +67,10 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
+import com.weto.booxcal.util.rememberDateFormat
 
-private val reminderDate: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("dd MMM yyyy", Locale.getDefault())
 private val clock: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
 
 /**
@@ -127,7 +128,7 @@ fun ColumnScope.ModuleCard(
             EinkTileButton(
                 glyph = module.glyph,
                 accent = module.accent,
-                label = module.title,
+                label = stringResource(module.title),
                 onClick = { onSelectModule(module) },
                 selected = state.module == module,
                 tileSize = 30.dp,
@@ -140,7 +141,7 @@ fun ColumnScope.ModuleCard(
         // El título va siempre al lado de los iconos; con "Nota" elegida, las
         // herramientas se alinean a la derecha detrás de él.
         Text(
-            text = state.module.title,
+            text = stringResource(state.module.title),
             style = MaterialTheme.typography.titleMedium,
             color = Eink.Black,
             maxLines = 1,
@@ -160,7 +161,7 @@ fun ColumnScope.ModuleCard(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "Ver todo",
+                    text = stringResource(R.string.module_see_all),
                     style = MaterialTheme.typography.labelLarge,
                     color = Eink.Graphite,
                 )
@@ -196,7 +197,7 @@ private fun RemindersTab(
     var completedExpanded by remember { mutableStateOf(false) }
 
     if (state.allReminders.isEmpty() && state.completedReminders.isEmpty()) {
-        EmptyModule("No hay recordatorios")
+        EmptyModule(stringResource(R.string.module_no_reminders))
         return
     }
 
@@ -251,7 +252,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.completedSection(
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = "Completadas (${state.completedReminders.size})",
+                    text = stringResource(R.string.module_completed_count, state.completedReminders.size),
                     style = MaterialTheme.typography.labelLarge,
                     color = Eink.Graphite,
                 )
@@ -291,6 +292,7 @@ private fun ReminderRow(
     val due = task.dueDayMillis?.let { LocalDate.ofEpochDay(Math.floorDiv(it, MILLIS_PER_DAY)) }
     val overdue = !completed && due != null && due.isBefore(today)
     val dueToday = !completed && due == today
+    val reminderDate = rememberDateFormat(R.string.pattern_dd_month_year)
 
     Row(
         modifier
@@ -303,7 +305,7 @@ private fun ReminderRow(
         Spacer(Modifier.width(4.dp))
         Column(Modifier.weight(1f).padding(vertical = if (compact) 4.dp else 8.dp)) {
             Text(
-                text = task.title.ifBlank { "(sin título)" },
+                text = task.title.ifBlank { stringResource(R.string.common_untitled) },
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = if (completed) Eink.Slate else Eink.Black,
@@ -319,14 +321,14 @@ private fun ReminderRow(
             ) {
                 // Lo que vence hoy y lo ya vencido se marcan con una etiqueta
                 // que salta a la vista; la fecha toma el mismo tono.
-                if (overdue) DuePill("Vencido", Accent.Today)
-                if (dueToday) DuePill("Hoy", Eink.Black)
+                if (overdue) DuePill(stringResource(R.string.module_overdue_pill), Accent.Today)
+                if (dueToday) DuePill(stringResource(R.string.common_today), Eink.Black)
                 Text(
                     // Sin fecha se dice explícitamente: un recordatorio sin
                     // fecha no sale en el calendario y conviene que se note.
                     // La fecha va siempre en negro y negrita, que es como se
                     // lee bien; solo lo vencido cambia al rojo y lo hecho al gris.
-                    text = due?.format(reminderDate) ?: "Sin fecha",
+                    text = due?.format(reminderDate)?.replace(".", "") ?: stringResource(R.string.common_no_date),
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = if (completed) null else FontWeight.SemiBold,
                     color = when {
@@ -377,7 +379,7 @@ private fun DayNotesTab(
     onDeleteNote: (Long) -> Unit,
 ) {
     if (state.dayNotes.isEmpty()) {
-        EmptyModule("Este día no tiene notas")
+        EmptyModule(stringResource(R.string.module_no_notes_today))
         return
     }
     var renaming by remember { mutableStateOf<InkNoteEntity?>(null) }
@@ -397,9 +399,10 @@ private fun DayNotesTab(
         }
     }
 
+    val noteAt = stringResource(R.string.note_at_time)
     deleting?.let { note ->
         ConfirmDeleteDialog(
-            title = note.displayTitle(),
+            title = note.displayTitle(noteAt),
             onDismiss = { deleting = null },
             onConfirm = {
                 onDeleteNote(note.id)
@@ -420,11 +423,11 @@ private fun DayNotesTab(
     }
 }
 
-/** Título de la nota: el puesto a mano, si no la transcripción, si no la hora. */
-private fun InkNoteEntity.displayTitle(): String =
+/** The note's title: the one given by hand, else the transcription, else the time ([noteAt] is "Note at %s"). */
+private fun InkNoteEntity.displayTitle(noteAt: String): String =
     title?.takeIf { it.isNotBlank() }
         ?: recognizedFlat?.lineSequence()?.map { it.trim() }?.firstOrNull { it.isNotEmpty() }
-        ?: "Nota de las " + Instant.ofEpochMilli(createdAt).atZone(ZoneId.systemDefault()).toLocalTime().format(clock)
+        ?: noteAt.format(Instant.ofEpochMilli(createdAt).atZone(ZoneId.systemDefault()).toLocalTime().format(clock))
 
 @Composable
 private fun NoteRow(
@@ -459,7 +462,7 @@ private fun NoteRow(
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(
-                text = note.displayTitle(),
+                text = note.displayTitle(stringResource(R.string.note_at_time)),
                 style = MaterialTheme.typography.bodyLarge,
                 color = Eink.Black,
                 maxLines = 1,
@@ -477,7 +480,7 @@ private fun NoteRow(
         EinkIconButton(
             glyph = Glyph.Edit,
             onClick = onEdit,
-            contentDescription = "Editar la nota",
+            contentDescription = stringResource(R.string.module_edit_note),
             accent = Accent.Note,
             box = 44.dp,
             size = 22.dp,
@@ -485,14 +488,14 @@ private fun NoteRow(
         EinkIconButton(
             glyph = Glyph.Title,
             onClick = onRename,
-            contentDescription = "Editar el título",
+            contentDescription = stringResource(R.string.module_edit_title),
             box = 44.dp,
             size = 22.dp,
         )
         EinkIconButton(
             glyph = Glyph.Trash,
             onClick = onDelete,
-            contentDescription = "Borrar la nota",
+            contentDescription = stringResource(R.string.module_delete_note),
             accent = Accent.Today,
             box = 44.dp,
             size = 22.dp,
@@ -503,9 +506,9 @@ private fun NoteRow(
 /** Borrar no tiene vuelta atrás: siempre se pregunta. */
 @Composable
 private fun ConfirmDeleteDialog(title: String, onDismiss: () -> Unit, onConfirm: () -> Unit) {
-    EinkDialog(onDismiss = onDismiss, title = "Borrar la nota", modifier = Modifier.width(420.dp)) {
+    EinkDialog(onDismiss = onDismiss, title = stringResource(R.string.module_delete_note), modifier = Modifier.width(420.dp)) {
         Text(
-            text = "«$title» se borrará del todo, con lo escrito en todas sus páginas.",
+            text = stringResource(R.string.module_delete_note_text, title),
             style = MaterialTheme.typography.bodyLarge,
             color = Eink.Black,
         )
@@ -514,8 +517,8 @@ private fun ConfirmDeleteDialog(title: String, onDismiss: () -> Unit, onConfirm:
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
         ) {
-            EinkButton("Cancelar", onDismiss)
-            EinkButton("Borrar", onConfirm, emphasized = true)
+            EinkButton(stringResource(R.string.common_cancel), onDismiss)
+            EinkButton(stringResource(R.string.common_delete), onConfirm, emphasized = true)
         }
     }
 }
@@ -523,15 +526,15 @@ private fun ConfirmDeleteDialog(title: String, onDismiss: () -> Unit, onConfirm:
 @Composable
 private fun RenameNoteDialog(initial: String, onDismiss: () -> Unit, onConfirm: (String) -> Unit) {
     var title by remember { mutableStateOf(initial) }
-    EinkDialog(onDismiss = onDismiss, title = "Título de la nota", modifier = Modifier.width(420.dp)) {
+    EinkDialog(onDismiss = onDismiss, title = stringResource(R.string.note_title_dialog), modifier = Modifier.width(420.dp)) {
         EinkTextField(
             value = title,
             onValueChange = { title = it },
-            placeholder = "Sin título",
+            placeholder = stringResource(R.string.note_title_placeholder),
         )
         Spacer(Modifier.height(10.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            EinkIconButton(Glyph.Check, { onConfirm(title) }, contentDescription = "Guardar el título", accent = Accent.Search)
+            EinkIconButton(Glyph.Check, { onConfirm(title) }, contentDescription = stringResource(R.string.note_title_save), accent = Accent.Search)
         }
     }
 }
@@ -548,14 +551,14 @@ private fun DueTab(
     onOpenEvent: (Long) -> Unit,
 ) {
     if (state.dueReminders.isEmpty() && state.todayEvents.isEmpty()) {
-        EmptyModule("Nada vencido ni para hoy")
+        EmptyModule(stringResource(R.string.module_nothing_due))
         return
     }
 
     val today = LocalDate.now()
     LazyColumn(Modifier.fillMaxSize()) {
         if (state.dueReminders.isNotEmpty()) {
-            item(key = "due-header") { SectionLabel("Recordatorios") }
+            item(key = "due-header") { SectionLabel(stringResource(R.string.common_reminders)) }
             items(state.dueReminders, key = { "due-${it.task.id}" }) { row ->
                 ReminderRow(
                     row = row,
@@ -568,7 +571,7 @@ private fun DueTab(
             }
         }
         if (state.todayEvents.isNotEmpty()) {
-            item(key = "events-header") { SectionLabel("Eventos de hoy") }
+            item(key = "events-header") { SectionLabel(stringResource(R.string.module_events_today)) }
             items(state.todayEvents, key = { "today-event-${it.event.id}" }) { row ->
                 EventRow(row, zone) { onOpenEvent(row.event.id) }
                 EinkDivider(Modifier.padding(horizontal = 14.dp))
@@ -615,7 +618,7 @@ private fun EventRow(row: EventWithCalendar, zone: ZoneId, onClick: () -> Unit) 
             modifier = Modifier.width(48.dp),
         )
         Text(
-            text = row.event.title.ifBlank { "(sin título)" },
+            text = row.event.title.ifBlank { stringResource(R.string.common_untitled) },
             style = MaterialTheme.typography.bodyLarge,
             color = Eink.Black,
             maxLines = 1,

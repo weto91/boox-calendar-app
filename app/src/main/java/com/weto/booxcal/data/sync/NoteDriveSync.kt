@@ -23,6 +23,9 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import com.weto.booxcal.R
+import com.weto.booxcal.di.Graph
+import androidx.annotation.StringRes
 
 private const val TAG = "NoteDriveSync"
 
@@ -105,12 +108,14 @@ class NoteDriveSync(
     }
 
     private fun describe(e: DriveException): String = when {
-        e.missingScope -> "Sin permiso de Drive: desconecta y vuelve a conectar la cuenta"
+        e.missingScope -> text(R.string.drive_missing_scope)
         // Con `drive.file` una carpeta que no creó la app no existe para ella:
         // pasa al reconectar la cuenta con una carpeta elegida a mano antes.
-        e.code == 404 -> "La carpeta de Drive ya no es accesible: en Ajustes, pulsa «Usar la carpeta de la app»"
-        else -> e.message ?: "Drive respondió ${e.code}"
+        e.code == 404 -> text(R.string.drive_folder_gone)
+        else -> e.message ?: text(R.string.drive_responded, e.code)
     }
+
+    private fun text(@StringRes id: Int, vararg args: Any): String = Graph.appContext.getString(id, *args)
 
     // --- Importar ---------------------------------------------------------------
 
@@ -133,26 +138,26 @@ class NoteDriveSync(
     ): Result<Long> = running.withLock {
         val prefs = settings.settings.first()
         val rootId = prefs.driveNotesFolderId
-            ?: return@withLock Result.failure(IllegalStateException("Activa Google Drive para las notas en Ajustes"))
-        if (!auth.isAuthorized) return@withLock Result.failure(IllegalStateException("Sin cuenta de Google conectada"))
+            ?: return@withLock Result.failure(IllegalStateException(text(R.string.notes_msg_enable_drive)))
+        if (!auth.isAuthorized) return@withLock Result.failure(IllegalStateException(text(R.string.auth_no_account)))
         runCatching {
             // Leer el PDF es trabajo de CPU (pinta cada página): fuera del
             // hilo principal, o la app deja de responder con un PDF largo.
-            onProgress("Leyendo el PDF…", 0.02f)
+            onProgress(text(R.string.import_reading_pdf), 0.02f)
             val notebook = withContext(Dispatchers.Default) {
                 NotePdf.read(bytes) { page, total ->
-                    onProgress("Convirtiendo la página $page de $total", 0.05f + 0.45f * page / total.coerceAtLeast(1))
+                    onProgress(text(R.string.import_converting_page, page, total), 0.05f + 0.45f * page / total.coerceAtLeast(1))
                 }
             }
             val name = fileName.trim().ifEmpty { "Importado.pdf" }.let { if (it.endsWith(".pdf", true)) it else "$it.pdf" }
-            onProgress("Buscando la carpeta en Drive…", 0.52f)
+            onProgress(text(R.string.import_finding_folder), 0.52f)
             val remote = walk(rootId)
             val parent = mirrorFolder(rootId, remote, folders.getAll().associateBy { it.id }, folderId)
-            onProgress("Subiendo a Drive…", 0.58f)
+            onProgress(text(R.string.import_uploading), 0.58f)
             val created = drive.createPdf(parent, uniqueName(remote, parent, name), bytes) { sent, total ->
-                onProgress("Subiendo a Drive… ${(100 * sent / total.coerceAtLeast(1)).toInt()} %", 0.58f + 0.37f * sent / total.coerceAtLeast(1))
+                onProgress(text(R.string.import_uploading_percent, (100 * sent / total.coerceAtLeast(1)).toInt()), 0.58f + 0.37f * sent / total.coerceAtLeast(1))
             }
-            onProgress("Guardando la nota…", 0.96f)
+            onProgress(text(R.string.import_saving), 0.96f)
             val id = notes.importFromDrive(
                 existingId = null,
                 notebook = notebook,
@@ -446,9 +451,9 @@ class NoteDriveSync(
     private fun defaultTitle(note: InkNoteEntity): String {
         val day = note.anchorDayMillis?.let { LocalDate.ofEpochDay(Math.floorDiv(it, MILLIS_PER_DAY)) }
         return if (day != null) {
-            "Nota ${day.format(DAY)} ${Instant.ofEpochMilli(note.createdAt).atZone(ZoneId.systemDefault()).format(TIME)}"
+            "${text(R.string.drive_note_file_prefix)} ${day.format(DAY)} ${Instant.ofEpochMilli(note.createdAt).atZone(ZoneId.systemDefault()).format(TIME)}"
         } else {
-            "Nota ${Instant.ofEpochMilli(note.createdAt).atZone(ZoneId.systemDefault()).format(STAMP)}"
+            "${text(R.string.drive_note_file_prefix)} ${Instant.ofEpochMilli(note.createdAt).atZone(ZoneId.systemDefault()).format(STAMP)}"
         }
     }
 

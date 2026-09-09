@@ -49,8 +49,8 @@ class TaskSectionsTest {
         )
 
         assertEquals(
-            listOf("Atrasadas", "Hoy", "Mañana", "Sin fecha", "Completadas"),
-            sections.map { it.title },
+            listOf(SectionKind.OVERDUE, SectionKind.TODAY, SectionKind.TOMORROW, SectionKind.UNDATED, SectionKind.COMPLETED),
+            sections.map { it.kind },
         )
         assertTrue(sections.first().overdue)
         assertTrue(sections.last().completed)
@@ -65,7 +65,7 @@ class TaskSectionsTest {
             grouping = TaskGrouping.BY_DATE,
         )
 
-        assertEquals(listOf("Hoy"), sections.map { it.title })
+        assertEquals(listOf(SectionKind.TODAY), sections.map { it.kind })
     }
 
     @Test
@@ -76,8 +76,8 @@ class TaskSectionsTest {
             grouping = TaskGrouping.BY_DATE,
         )
 
-        assertEquals(listOf("Completadas"), sections.map { it.title })
-        assertNull(sections.firstOrNull { it.title == "Hoy" })
+        assertEquals(listOf(SectionKind.COMPLETED), sections.map { it.kind })
+        assertNull(sections.firstOrNull { it.kind == SectionKind.TODAY })
     }
 
     @Test
@@ -92,7 +92,8 @@ class TaskSectionsTest {
             grouping = TaskGrouping.BY_LIST,
         )
 
-        assertEquals(listOf("Hogar", "Trabajo", "Completadas"), sections.map { it.title })
+        assertEquals(listOf("Hogar", "Trabajo", ""), sections.map { it.title })
+        assertEquals(listOf(SectionKind.LIST, SectionKind.LIST, SectionKind.COMPLETED), sections.map { it.kind })
     }
 
     @Test

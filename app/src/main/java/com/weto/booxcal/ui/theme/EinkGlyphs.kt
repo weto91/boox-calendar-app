@@ -209,41 +209,35 @@ private fun DrawScope.drawGlyph(glyph: Glyph, tint: Color) {
             polyline(15.2f to 15.2f, 20f to 20f)
         }
 
-        // Nube sólida con la marca calada en blanco. Una nube de contorno a
-        // 22dp en e-ink se convierte en un borrón; rellena siempre se lee.
+        // A solid cloud (an outlined one smudges at 22 dp on e-ink): three
+        // bumps of different sizes on a flat base, the way clouds are drawn
+        // everywhere, with the check cut out of it.
         Glyph.SyncCloud -> {
+            fun bump(cx: Float, cy: Float, r: Float, start: Float, sweep: Float, path: Path) {
+                path.arcTo(
+                    androidx.compose.ui.geometry.Rect(Offset((cx - r) * u, (cy - r) * u), Size(2 * r * u, 2 * r * u)),
+                    start,
+                    sweep,
+                    false,
+                )
+            }
             val cloud = Path().apply {
-                addOval(
-                    androidx.compose.ui.geometry.Rect(
-                        Offset(8f * u, 4.2f * u),
-                        Size(9.5f * u, 9.5f * u),
-                    )
-                )
-                addOval(
-                    androidx.compose.ui.geometry.Rect(
-                        Offset(2.5f * u, 8f * u),
-                        Size(8f * u, 8f * u),
-                    )
-                )
-                addRoundRect(
-                    androidx.compose.ui.geometry.RoundRect(
-                        left = 3.5f * u,
-                        top = 11f * u,
-                        right = 20.5f * u,
-                        bottom = 18.5f * u,
-                        cornerRadius = CornerRadius(3.6f * u, 3.6f * u),
-                    )
-                )
+                moveTo(7f * u, 19.2f * u)
+                lineTo(17.6f * u, 19.2f * u)
+                bump(17.6f, 15.6f, 3.6f, 90f, -180f, this)
+                bump(12.4f, 11.2f, 5.4f, 22f, -202f, this)
+                bump(6.8f, 15.4f, 3.8f, -90f, -180f, this)
+                close()
             }
             drawPath(cloud, tint)
             val check = Path().apply {
-                moveTo(8.8f * u, 13.4f * u)
-                lineTo(11.1f * u, 15.7f * u)
-                lineTo(15.6f * u, 10.4f * u)
+                moveTo(8.6f * u, 14.4f * u)
+                lineTo(11.2f * u, 16.9f * u)
+                lineTo(16.2f * u, 11.4f * u)
             }
             drawPath(
                 check,
-                Eink.White,
+                hole,
                 style = Stroke(2.1f * u, cap = StrokeCap.Round, join = StrokeJoin.Round),
             )
         }
@@ -269,15 +263,25 @@ private fun DrawScope.drawGlyph(glyph: Glyph, tint: Color) {
             polyline(5f to 12f, 19f to 12f)
         }
 
+        // A cog: eight teeth around a ring, with the axle hole in the
+        // middle. Outlined, so it also reads cut out in white on a tile.
         Glyph.Gear -> {
-            drawCircle(tint, radius = 4.4f * u, center = Offset(12f * u, 12f * u), style = thin)
-            // Seis dientes radiales. Con más, a este tamaño, se juntan.
-            polyline(12f to 2.5f, 12f to 6.2f)
-            polyline(20.2f to 7.2f, 16.4f to 9.4f)
-            polyline(20.2f to 16.8f, 16.4f to 14.6f)
-            polyline(12f to 21.5f, 12f to 17.8f)
-            polyline(3.8f to 16.8f, 7.6f to 14.6f)
-            polyline(3.8f to 7.2f, 7.6f to 9.4f)
+            val gear = Path()
+            val outer = 10.2f
+            val inner = 7.4f
+            repeat(8) { tooth ->
+                val a = tooth * 45f
+                listOf(a - 12.5f to inner, a - 7f to outer, a + 7f to outer, a + 12.5f to inner)
+                    .forEachIndexed { index, (deg, r) ->
+                        val rad = Math.toRadians(deg.toDouble())
+                        val x = (12f + r * Math.cos(rad).toFloat()) * u
+                        val y = (12f + r * Math.sin(rad).toFloat()) * u
+                        if (tooth == 0 && index == 0) gear.moveTo(x, y) else gear.lineTo(x, y)
+                    }
+            }
+            gear.close()
+            drawPath(gear, tint, style = Stroke(width = 1.7f * u, join = StrokeJoin.Round))
+            drawCircle(tint, radius = 3.1f * u, center = Offset(12f * u, 12f * u), style = thin)
         }
 
         Glyph.Today -> {

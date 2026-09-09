@@ -65,12 +65,15 @@ import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
+import com.weto.booxcal.util.rememberDateFormat
+import com.weto.booxcal.util.rememberLocale
+import com.weto.booxcal.util.format
 
-private val dateLabel: DateTimeFormatter =
-    DateTimeFormatter.ofPattern("EEE d MMM yyyy", Locale.getDefault())
-
+@Composable
 private fun LocalDate.label(): String =
-    format(dateLabel).replaceFirstChar { it.titlecase(Locale.getDefault()) }
+    format(rememberDateFormat(R.string.pattern_date_short_year), capitalize = true, locale = rememberLocale())
 
 
 /**
@@ -135,8 +138,8 @@ private fun QuickCreateContent(
     ) {
         EinkTabs(
             tabs = listOf(
-                Triple(Glyph.Today, Accent.Event, "Evento"),
-                Triple(Glyph.Bell, Accent.Reminder, "Recordatorio"),
+                Triple(Glyph.Today, Accent.Event, stringResource(R.string.common_event)),
+                Triple(Glyph.Bell, Accent.Reminder, stringResource(R.string.common_reminder)),
             ),
             selectedIndex = tab,
             onSelect = { tab = it },
@@ -193,7 +196,7 @@ private fun EventTab(
 
     if (picker == EventPicker.INK) {
         InkCaptureSheet(
-            title = "Nota del evento",
+            title = stringResource(R.string.event_note_title),
             initial = ink,
             languageTag = form.ocrLanguageTag,
             onCancel = { picker = null },
@@ -226,7 +229,7 @@ private fun EventTab(
             EinkTextField(
                 value = form.title,
                 onValueChange = { value -> viewModel.update { it.copy(title = value) } },
-                placeholder = "Título del evento",
+                placeholder = stringResource(R.string.quick_event_title_placeholder),
                 textStyle = MaterialTheme.typography.bodyLarge,
             )
 
@@ -236,7 +239,7 @@ private fun EventTab(
             EinkFieldRow(
                 glyph = Glyph.Today,
                 accent = Accent.Event,
-                label = "Cuándo",
+                label = stringResource(R.string.common_when),
                 value = EventWhen(form.startDate, form.endDate, form.allDay, form.startTime, form.endTime).label(),
                 onClick = { picker = EventPicker.WHEN },
             )
@@ -246,24 +249,24 @@ private fun EventTab(
             EinkFieldRow(
                 glyph = Glyph.ListCheck,
                 accent = Accent.List,
-                label = "Calendario",
+                label = stringResource(R.string.common_calendar),
                 value = form.calendars.firstOrNull { it.id == form.calendarId }?.name ?: "—",
                 onClick = { picker = EventPicker.CALENDAR },
             )
             EinkFieldRow(
                 glyph = Glyph.Bell,
                 accent = Accent.Alarm,
-                label = "Aviso",
-                value = REMINDER_OPTIONS
-                    .firstOrNull { it.minutes == form.reminderMinutes }?.label
-                    ?: "Sin aviso",
+                label = stringResource(R.string.common_alert),
+                value = stringResource(
+                    REMINDER_OPTIONS.firstOrNull { it.minutes == form.reminderMinutes }?.label ?: R.string.alert_none
+                ),
                 onClick = { picker = EventPicker.REMINDER },
             )
             EinkFieldRow(
                 glyph = Glyph.Pencil,
                 accent = Accent.Note,
-                label = "Nota manuscrita",
-                value = if (ink.isEmpty) "Añadir" else "Escrita",
+                label = stringResource(R.string.common_handwritten_note),
+                value = stringResource(if (ink.isEmpty) R.string.quick_ink_add else R.string.quick_ink_written),
                 onClick = { picker = EventPicker.INK },
             )
 
@@ -272,15 +275,15 @@ private fun EventTab(
             EinkTextField(
                 value = form.location,
                 onValueChange = { value -> viewModel.update { it.copy(location = value) } },
-                label = "Lugar",
-                placeholder = "Opcional",
+                label = stringResource(R.string.common_place),
+                placeholder = stringResource(R.string.common_optional),
             )
             Spacer(Modifier.height(8.dp))
             EinkTextField(
                 value = form.description,
                 onValueChange = { value -> viewModel.update { it.copy(description = value) } },
-                label = "Descripción",
-                placeholder = "Opcional",
+                label = stringResource(R.string.common_description),
+                placeholder = stringResource(R.string.common_optional),
                 singleLine = false,
                 minLines = 6,
             )
@@ -315,7 +318,7 @@ private fun EventTab(
         )
 
         EventPicker.CALENDAR -> ChoiceDialog(
-            title = "Calendario",
+            title = stringResource(R.string.common_calendar),
             options = form.calendars.map { it.id to it.name },
             selected = form.calendarId,
             onDismiss = { picker = null },
@@ -326,8 +329,8 @@ private fun EventTab(
         )
 
         EventPicker.REMINDER -> ChoiceDialog(
-            title = "Aviso",
-            options = REMINDER_OPTIONS.map { it.minutes to it.label },
+            title = stringResource(R.string.common_alert),
+            options = REMINDER_OPTIONS.map { it.minutes to stringResource(it.label) },
             selected = form.reminderMinutes,
             onDismiss = { picker = null },
             onPick = { minutes ->
@@ -368,7 +371,7 @@ private fun ReminderTab(
 
     if (picker == ReminderPicker.INK) {
         InkCaptureSheet(
-            title = "Nota del recordatorio",
+            title = stringResource(R.string.task_note_title),
             initial = ink,
             languageTag = form.ocrLanguageTag,
             onCancel = { picker = null },
@@ -401,7 +404,7 @@ private fun ReminderTab(
             EinkTextField(
                 value = form.title,
                 onValueChange = { value -> viewModel.update { it.copy(title = value) } },
-                placeholder = "¿Qué hay que recordar?",
+                placeholder = stringResource(R.string.quick_reminder_placeholder),
                 textStyle = MaterialTheme.typography.bodyLarge,
             )
 
@@ -410,22 +413,22 @@ private fun ReminderTab(
             EinkFieldRow(
                 glyph = Glyph.Today,
                 accent = Accent.Reminder,
-                label = "Fecha",
-                value = form.dueDate?.label() ?: "Sin fecha",
+                label = stringResource(R.string.common_date),
+                value = form.dueDate?.label() ?: stringResource(R.string.common_no_date),
                 onClick = { picker = ReminderPicker.DUE_DATE },
             )
             EinkFieldRow(
                 glyph = Glyph.ListCheck,
                 accent = Accent.List,
-                label = "Lista",
+                label = stringResource(R.string.common_list),
                 value = form.lists.firstOrNull { it.id == form.taskListId }?.name ?: "—",
                 onClick = { picker = ReminderPicker.LIST },
             )
             EinkFieldRow(
                 glyph = Glyph.Pencil,
                 accent = Accent.Note,
-                label = "Nota manuscrita",
-                value = if (ink.isEmpty) "Añadir" else "Escrita",
+                label = stringResource(R.string.common_handwritten_note),
+                value = stringResource(if (ink.isEmpty) R.string.quick_ink_add else R.string.quick_ink_written),
                 onClick = { picker = ReminderPicker.INK },
             )
 
@@ -434,18 +437,15 @@ private fun ReminderTab(
             EinkTextField(
                 value = form.notes,
                 onValueChange = { value -> viewModel.update { it.copy(notes = value) } },
-                label = "Nota",
-                placeholder = "Opcional",
+                label = stringResource(R.string.quick_note_field),
+                placeholder = stringResource(R.string.common_optional),
                 singleLine = false,
                 minLines = 8,
             )
 
             if (form.dueDate == null) {
                 Spacer(Modifier.height(8.dp))
-                EinkHint(
-                    "Sin fecha el recordatorio vive en la lista de tareas, pero no " +
-                        "aparece en el calendario."
-                )
+                EinkHint(stringResource(R.string.task_no_date_hint))
             }
         }
 
@@ -474,7 +474,7 @@ private fun ReminderTab(
         )
 
         ReminderPicker.LIST -> ChoiceDialog(
-            title = "Lista",
+            title = stringResource(R.string.common_list),
             options = form.lists.map { it.id to it.name },
             selected = form.taskListId,
             onDismiss = { picker = null },
@@ -510,7 +510,7 @@ private fun ColumnScope.SaveBar(
     } else if (blocked) {
         // Solo puede pasar si la colección local aún no está creada; se dice en
         // vez de dejar el botón apagado sin explicación.
-        EinkHint("Todavía no hay ningún calendario ni lista donde guardarlo.", Modifier.padding(top = 6.dp))
+        EinkHint(stringResource(R.string.quick_no_collection), Modifier.padding(top = 6.dp))
     }
 
     Row(
@@ -524,12 +524,12 @@ private fun ColumnScope.SaveBar(
         EinkIconButton(
             glyph = Glyph.ChevronLeft,
             onClick = onCancel,
-            contentDescription = "Cancelar",
+            contentDescription = stringResource(R.string.common_cancel),
         )
         EinkIconButton(
             glyph = Glyph.Check,
             onClick = onSave,
-            contentDescription = "Guardar",
+            contentDescription = stringResource(R.string.common_save),
             enabled = canSave,
             accent = Accent.Search,
         )
@@ -547,7 +547,7 @@ private fun <T> ChoiceDialog(
     EinkDialog(onDismiss = onDismiss, title = title, modifier = Modifier.width(360.dp)) {
         Column(Modifier.verticalScroll(rememberScrollState())) {
             if (options.isEmpty()) {
-                EinkHint("No hay ninguna opción todavía.")
+                EinkHint(stringResource(R.string.quick_no_options))
             }
             // Una lista con su marca, no una pila de botones del ancho de la
             // pantalla: lo que se elige es un nombre, y un botón enorme
@@ -577,7 +577,7 @@ private fun <T> ChoiceDialog(
             }
             Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
                 Spacer(Modifier.weight(1f))
-                EinkIconButton(Glyph.ChevronLeft, onDismiss, contentDescription = "Cerrar")
+                EinkIconButton(Glyph.ChevronLeft, onDismiss, contentDescription = stringResource(R.string.common_close))
             }
         }
     }

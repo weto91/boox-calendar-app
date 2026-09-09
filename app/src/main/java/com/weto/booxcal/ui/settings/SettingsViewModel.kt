@@ -24,6 +24,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.DayOfWeek
+import com.weto.booxcal.R
+import androidx.annotation.StringRes
+import com.weto.booxcal.util.AppLocale
 
 data class SettingsUiState(
     val settings: AppSettings = AppSettings(),
@@ -38,29 +41,9 @@ data class SettingsUiState(
     val syncing: Boolean = false,
     val ocrModel: ModelState = ModelState.Unknown,
     val message: String? = null,
-) {
-    /**
-     * Una línea que diga si va o no va.
-     *
-     * Es lo único que hace falta saber de la cuenta una vez dado el permiso: si
-     * no hay red, la sincronización falla y el fallo queda registrado, así que
-     * el mismo mensaje cubre "sin conexión" y "algo ha ido mal".
-     */
-    val syncStatus: String
-        get() = when {
-            syncing -> "Sincronizando…"
-            settings.lastSyncError != null -> "Sin sincronizar: ${settings.lastSyncError}"
-            settings.lastSyncAt > 0 -> {
-                val minutes = (System.currentTimeMillis() - settings.lastSyncAt) / 60_000
-                when {
-                    minutes < 1 -> "Sincronizado hace un momento"
-                    minutes < 60 -> "Sincronizado hace $minutes min"
-                    else -> "Sincronizado hace ${minutes / 60} h"
-                }
-            }
-            else -> "Aún no se ha sincronizado"
-        }
-}
+    /** The pinned app language ([AppLocale.SYSTEM] to follow the device). */
+    val language: String = AppLocale.SYSTEM,
+)
 
 val RETENTION_CHOICES = listOf(7, 30, 90, 365, AppSettings.NEVER_PURGE)
 
@@ -80,6 +63,7 @@ class SettingsViewModel(
             authorized = auth.isAuthorized,
             accountEmail = auth.accountEmail,
             hasDriveScope = auth.hasDriveScope,
+            language = AppLocale.current(Graph.appContext),
         )
     )
 
@@ -114,7 +98,7 @@ class SettingsViewModel(
                 accountEmail = auth.accountEmail,
                 hasDriveScope = auth.hasDriveScope,
                 message = result.exceptionOrNull()?.message
-                    ?: "Cuenta conectada. Sincronizando…",
+                    ?: text(R.string.settings_msg_connected),
             )
             if (result.isSuccess) syncScheduler.syncNow()
         }
@@ -140,10 +124,10 @@ class SettingsViewModel(
             val result = runCatching { drive.findOrCreateFolder(GoogleDriveClient.ROOT, APP_FOLDER) }
             result.onSuccess { folder ->
                 settingsStore.setDriveNotesFolder(folder.id, folder.name)
-                local.value = local.value.copy(message = "Carpeta de Drive: ${folder.name}. Sincronizando notas…")
+                local.value = local.value.copy(message = text(R.string.settings_msg_drive_folder, folder.name))
                 syncScheduler.syncNotesNow()
             }.onFailure { e ->
-                local.value = local.value.copy(message = "No se pudo crear la carpeta en Drive: ${e.message}")
+                local.value = local.value.copy(message = text(R.string.settings_msg_drive_folder_failed, e.message.orEmpty()))
             }
         }
     }
@@ -151,7 +135,7 @@ class SettingsViewModel(
     fun clearDriveFolder() {
         viewModelScope.launch {
             settingsStore.setDriveNotesFolder(null, null)
-            local.value = local.value.copy(message = "Las notas ya no se sincronizan con Drive. Las que ya estaban se quedan.")
+            local.value = local.value.copy(message = text(R.string.settings_msg_drive_off))
         }
     }
 
@@ -174,7 +158,7 @@ class SettingsViewModel(
             local.value = local.value.copy(
                 authorized = false,
                 accountEmail = null,
-                message = "Cuenta desconectada.",
+                message = text(R.string.settings_msg_disconnected),
             )
         }
     }
@@ -225,8 +209,13 @@ class SettingsViewModel(
         viewModelScope.launch { settingsStore.setStatusStrip(mode) }
     }
 
+    /** Pins the app language; the screen recreates itself afterwards. */
+    fun setLanguage(tag: String) {
+        AppLocale.set(Graph.appContext, tag)
+        local.value = local.value.copy(language = tag)
+    }
 
-
+    private fun text(@StringRes id: Int, vararg args: Any): String = Graph.appContext.getString(id, *args)
 
     fun acknowledgePowerWarning() {
         viewModelScope.launch { settingsStore.acknowledgePowerWarning() }

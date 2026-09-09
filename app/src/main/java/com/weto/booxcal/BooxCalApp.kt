@@ -1,17 +1,23 @@
 package com.weto.booxcal
 
 import android.app.Application
+import android.content.Context
 import android.os.Build
 import android.util.Log
 import androidx.work.Configuration
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.weto.booxcal.di.Graph
+import com.weto.booxcal.util.AppLocale
 import com.weto.booxcal.widget.AgendaWidgets
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 
 class BooxCalApp : Application(), Configuration.Provider {
+
+    override fun attachBaseContext(base: Context) {
+        super.attachBaseContext(AppLocale.wrap(base))
+    }
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()

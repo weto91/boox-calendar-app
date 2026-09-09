@@ -68,9 +68,12 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
+import com.weto.booxcal.util.rememberDateFormat
+import com.weto.booxcal.ui.theme.relativeTime
+import com.weto.booxcal.ink.TemplateRef
 
-private val stamp: DateTimeFormatter = DateTimeFormatter.ofPattern("d MMM yyyy, HH:mm", Locale.getDefault())
-private val dayLabel: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM yyyy", Locale.getDefault())
 
 private val TREE_WIDTH = 300.dp
 
@@ -99,7 +102,7 @@ fun NotesManagerScreen(
     onBack: () -> Unit,
     /** Abrir una nota por una página (desde 0). */
     onOpenNote: (InkNoteEntity, Int) -> Unit,
-    onNewNote: (folderId: Long?) -> Unit,
+    onNewNote: (folderId: Long?, template: TemplateRef?) -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: NotesManagerViewModel = viewModel(),
@@ -109,6 +112,7 @@ fun NotesManagerScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var sheet by remember { mutableStateOf<Sheet?>(null) }
+    var templatePicker by remember { mutableStateOf(false) }
     val view = LocalView.current
     LaunchedEffect(Unit) { EinkRefresh.fullRefresh(view) }
     // El selector de archivos del sistema: enseña el Drive del usuario (si
@@ -134,11 +138,11 @@ fun NotesManagerScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            EinkIconButton(Glyph.ChevronLeft, onBack, contentDescription = "Volver")
+            EinkIconButton(Glyph.ChevronLeft, onBack, contentDescription = stringResource(R.string.common_back))
             EinkTile(Glyph.Folder, Accent.Note, size = 32.dp, glyphSize = 18.dp)
             Column(Modifier.weight(1f).padding(start = 6.dp)) {
                 Text(
-                    text = "Cuaderno",
+                    text = stringResource(R.string.common_notebook),
                     style = MaterialTheme.typography.titleLarge,
                     color = Eink.Black,
                 )
@@ -153,27 +157,28 @@ fun NotesManagerScreen(
             EinkIconButton(
                 glyph = Glyph.SyncCloud,
                 onClick = viewModel::syncNow,
-                contentDescription = "Sincronizar con Drive",
+                contentDescription = stringResource(R.string.notes_sync_drive),
                 enabled = !state.syncing,
                 accent = Accent.Sync,
             )
             EinkIconButton(
                 glyph = Glyph.Folder,
                 onClick = { sheet = Sheet.NewFolder },
-                contentDescription = "Carpeta nueva",
+                contentDescription = stringResource(R.string.notes_new_folder),
                 accent = Accent.Note,
             )
             EinkIconButton(
                 glyph = Glyph.Upload,
                 onClick = { runCatching { importPdfs.launch(arrayOf("application/pdf")) } },
-                contentDescription = "Importar PDF",
+                contentDescription = stringResource(R.string.notes_import_pdf),
                 enabled = state.importProgress == null,
                 accent = Accent.Sync,
             )
-            EinkButton(
-                label = "Nota nueva",
-                onClick = { onNewNote(state.selectedFolderId) },
-                emphasized = true,
+            EinkIconButton(
+                glyph = Glyph.Plus,
+                onClick = { templatePicker = true },
+                contentDescription = stringResource(R.string.notes_new_note),
+                accent = Accent.Note,
             )
         }
         EinkDivider(color = Eink.Black)
@@ -192,7 +197,7 @@ fun NotesManagerScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(message, style = MaterialTheme.typography.bodyMedium, color = Eink.Black, modifier = Modifier.weight(1f))
-                EinkHint("Cerrar")
+                EinkHint(stringResource(R.string.common_close))
             }
             EinkDivider()
         }
@@ -211,42 +216,52 @@ fun NotesManagerScreen(
                 onQuery = viewModel::setQuery,
                 onOpen = { note -> onOpenNote(note, 0) },
                 onSheet = { sheet = it },
-                onNewNote = { onNewNote(state.selectedFolderId) },
+                onNewNote = { templatePicker = true },
                 onOpenSettings = onOpenSettings,
                 modifier = Modifier.weight(1f).fillMaxHeight(),
             )
         }
     }
 
+    if (templatePicker) {
+        TemplatePickerDialog(
+            onDismiss = { templatePicker = false },
+            onPick = { template ->
+                templatePicker = false
+                onNewNote(state.selectedFolderId, template)
+            },
+        )
+    }
+
     when (val open = sheet) {
         null -> Unit
         Sheet.NewFolder -> TextPrompt(
-            title = "Carpeta nueva",
-            hint = state.selectedFolder?.let { "Dentro de «${it.name}»" } ?: "En la raíz",
+            title = stringResource(R.string.notes_new_folder),
+            hint = state.selectedFolder?.let { stringResource(R.string.notes_folder_inside, it.name) } ?: stringResource(R.string.notes_folder_root_hint),
             initial = "",
-            placeholder = "Nombre de la carpeta",
-            confirm = "Crear",
+            placeholder = stringResource(R.string.notes_folder_name),
+            confirm = stringResource(R.string.common_create),
             onDismiss = { sheet = null },
             onConfirm = { viewModel.createFolder(it); sheet = null },
         )
         is Sheet.RenameFolder -> TextPrompt(
-            title = "Renombrar carpeta",
+            title = stringResource(R.string.notes_rename_folder),
             hint = null,
             initial = open.folder.name,
-            placeholder = "Nombre",
-            confirm = "Guardar",
+            placeholder = stringResource(R.string.notes_name),
+            confirm = stringResource(R.string.common_save),
             onDismiss = { sheet = null },
             onConfirm = { viewModel.renameFolder(open.folder.id, it); sheet = null },
         )
         is Sheet.DeleteFolder -> ConfirmPrompt(
-            title = "Borrar la carpeta",
-            text = "«${open.folder.name}» se borra; sus notas y subcarpetas suben a la carpeta de encima. No se pierde ninguna nota.",
-            confirm = "Borrar carpeta",
+            title = stringResource(R.string.notes_delete_folder),
+            text = stringResource(R.string.notes_delete_folder_text, open.folder.name),
+            confirm = stringResource(R.string.notes_delete_folder_confirm),
             onDismiss = { sheet = null },
             onConfirm = { viewModel.deleteFolder(open.folder.id); sheet = null },
         )
         is Sheet.MoveFolder -> FolderPicker(
-            title = "Mover «${open.folder.name}» a…",
+            title = stringResource(R.string.notes_move_folder_to, open.folder.name),
             folders = state.folders,
             current = open.folder.parentId,
             exclude = open.folder.id,
@@ -254,17 +269,17 @@ fun NotesManagerScreen(
             onPick = { viewModel.moveFolder(open.folder.id, it); sheet = null },
         )
         is Sheet.RenameNote -> TextPrompt(
-            title = "Título de la nota",
-            hint = "En blanco, la nota vuelve a mostrarse por su fecha.",
+            title = stringResource(R.string.note_title_dialog),
+            hint = stringResource(R.string.notes_note_title_hint),
             initial = open.note.title.orEmpty(),
-            placeholder = "Título",
-            confirm = "Guardar",
+            placeholder = stringResource(R.string.common_title),
+            confirm = stringResource(R.string.common_save),
             allowBlank = true,
             onDismiss = { sheet = null },
             onConfirm = { viewModel.renameNote(open.note.id, it); sheet = null },
         )
         is Sheet.MoveNote -> FolderPicker(
-            title = "Mover la nota a…",
+            title = stringResource(R.string.notes_move_note_to),
             folders = state.folders,
             current = open.note.folderId,
             exclude = null,
@@ -278,13 +293,11 @@ fun NotesManagerScreen(
             onSave = { viewModel.setTags(open.note.id, it); sheet = null },
         )
         is Sheet.DeleteNote -> ConfirmPrompt(
-            title = "Borrar la nota",
-            text = if (open.note.driveFileId != null) {
-                "Se borra aquí y su PDF en Drive va a la papelera (de ahí se puede recuperar)."
-            } else {
-                "Se borra la nota con todo lo escrito en ella."
-            },
-            confirm = "Borrar nota",
+            title = stringResource(R.string.notes_delete_note),
+            text = stringResource(
+                if (open.note.driveFileId != null) R.string.notes_delete_note_drive else R.string.notes_delete_note_local
+            ),
+            confirm = stringResource(R.string.notes_delete_note_confirm),
             onDismiss = { sheet = null },
             onConfirm = { viewModel.deleteNote(open.note.id); sheet = null },
         )
@@ -302,9 +315,9 @@ private fun ImportProgressBar(progress: ImportProgress) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text(
                 text = if (progress.count > 1) {
-                    "Importando ${progress.index} de ${progress.count}: ${progress.fileName}"
+                    stringResource(R.string.notes_importing_n_of_m, progress.index, progress.count, progress.fileName)
                 } else {
-                    "Importando ${progress.fileName}"
+                    stringResource(R.string.notes_importing, progress.fileName)
                 },
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
@@ -344,19 +357,13 @@ private fun ImportProgressBar(progress: ImportProgress) {
     }
 }
 
+@Composable
 private fun driveLine(state: NotesManagerState): String = when {
-    state.syncing -> "Sincronizando con Google Drive…"
-    !state.driveConfigured -> "${state.totalNotes} notas · sin carpeta de Google Drive"
-    state.driveError != null -> "Drive: ${state.driveError}"
-    state.driveSyncAt > 0 -> {
-        val minutes = (System.currentTimeMillis() - state.driveSyncAt) / 60_000
-        "${state.totalNotes} notas · Drive " + when {
-            minutes < 1 -> "hace un momento"
-            minutes < 60 -> "hace $minutes min"
-            else -> "hace ${minutes / 60} h"
-        }
-    }
-    else -> "${state.totalNotes} notas · Drive aún sin sincronizar"
+    state.syncing -> stringResource(R.string.notes_syncing_drive)
+    !state.driveConfigured -> stringResource(R.string.notes_count_no_drive, state.totalNotes)
+    state.driveError != null -> stringResource(R.string.notes_drive_error, state.driveError)
+    state.driveSyncAt > 0 -> stringResource(R.string.notes_count_drive, state.totalNotes, relativeTime(state.driveSyncAt))
+    else -> stringResource(R.string.notes_count_drive_pending, state.totalNotes)
 }
 
 // --- Árbol --------------------------------------------------------------------
@@ -372,7 +379,7 @@ private fun FolderPane(
     Column(modifier.verticalScroll(rememberScrollState()).padding(vertical = 6.dp)) {
         TreeRow(
             glyph = Glyph.Bullets,
-            label = "Todas las notas",
+            label = stringResource(R.string.notes_all),
             count = state.totalNotes,
             depth = 0,
             selected = state.scope == FolderScope.All,
@@ -383,7 +390,7 @@ private fun FolderPane(
         )
         TreeRow(
             glyph = Glyph.Folder,
-            label = "Raíz",
+            label = stringResource(R.string.notes_root),
             count = state.rootCount,
             depth = 0,
             selected = state.scope == FolderScope.Root,
@@ -410,7 +417,7 @@ private fun FolderPane(
             Spacer(Modifier.height(10.dp))
             EinkDivider()
             Text(
-                text = "ETIQUETAS",
+                text = stringResource(R.string.notes_tags),
                 style = MaterialTheme.typography.labelSmall,
                 color = Eink.Graphite,
                 modifier = Modifier.padding(start = 14.dp, top = 12.dp, bottom = 6.dp),
@@ -506,9 +513,9 @@ private fun NotesPane(
         ) {
             Column(Modifier.weight(1f)) {
                 val title = when (val scope = state.scope) {
-                    FolderScope.All -> "Todas las notas"
-                    FolderScope.Root -> "Raíz"
-                    is FolderScope.Folder -> state.folders.firstOrNull { it.id == scope.id }?.name ?: "Carpeta"
+                    FolderScope.All -> stringResource(R.string.notes_all)
+                    FolderScope.Root -> stringResource(R.string.notes_root)
+                    is FolderScope.Folder -> state.folders.firstOrNull { it.id == scope.id }?.name ?: stringResource(R.string.notes_folder)
                 }
                 Text(text = title, style = MaterialTheme.typography.titleLarge, color = Eink.Black)
                 val path = state.selectedPath
@@ -521,7 +528,7 @@ private fun NotesPane(
                 }
                 state.tag?.let {
                     Text(
-                        text = "Etiqueta: $it",
+                        text = stringResource(R.string.notes_tag_filter, it),
                         style = MaterialTheme.typography.bodySmall,
                         color = Eink.Graphite,
                     )
@@ -530,18 +537,18 @@ private fun NotesPane(
             state.selectedFolder?.let { folder ->
                 if (folder.id in state.lockedFolders) {
                     // Con notas importadas dentro, la carpeta es de Drive: aquí no se toca.
-                    EinkHint("Carpeta de Drive", Modifier.padding(end = 8.dp))
+                    EinkHint(stringResource(R.string.notes_drive_folder), Modifier.padding(end = 8.dp))
                 } else {
-                    EinkIconButton(Glyph.Title, { onSheet(Sheet.RenameFolder(folder)) }, contentDescription = "Renombrar carpeta", box = 44.dp)
-                    EinkIconButton(Glyph.Folder, { onSheet(Sheet.MoveFolder(folder)) }, contentDescription = "Mover carpeta", box = 44.dp)
-                    EinkIconButton(Glyph.Trash, { onSheet(Sheet.DeleteFolder(folder)) }, contentDescription = "Borrar carpeta", accent = Accent.Today, box = 44.dp)
+                    EinkIconButton(Glyph.Title, { onSheet(Sheet.RenameFolder(folder)) }, contentDescription = stringResource(R.string.notes_rename_folder), box = 44.dp)
+                    EinkIconButton(Glyph.Folder, { onSheet(Sheet.MoveFolder(folder)) }, contentDescription = stringResource(R.string.notes_move_folder), box = 44.dp)
+                    EinkIconButton(Glyph.Trash, { onSheet(Sheet.DeleteFolder(folder)) }, contentDescription = stringResource(R.string.notes_delete_folder_confirm), accent = Accent.Today, box = 44.dp)
                 }
             }
         }
         EinkTextField(
             value = state.query,
             onValueChange = onQuery,
-            placeholder = "Buscar en título, texto y etiquetas",
+            placeholder = stringResource(R.string.notes_search_placeholder),
             modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp),
         )
         EinkDivider(Modifier.padding(top = 6.dp), color = Eink.Border)
@@ -550,15 +557,15 @@ private fun NotesPane(
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = if (state.query.isNotBlank() || state.tag != null) "Nada que encaje" else "No hay notas aquí",
+                        text = stringResource(if (state.query.isNotBlank() || state.tag != null) R.string.notes_no_match else R.string.notes_empty),
                         style = MaterialTheme.typography.bodyLarge,
                         color = Eink.Graphite,
                     )
                     Spacer(Modifier.height(10.dp))
-                    EinkButton("Nota nueva", onNewNote)
+                    EinkButton(stringResource(R.string.notes_new_note), onNewNote)
                     if (!state.driveConfigured) {
                         Spacer(Modifier.height(6.dp))
-                        EinkButton("Elegir carpeta de Drive en Ajustes", onOpenSettings)
+                        EinkButton(stringResource(R.string.notes_enable_drive_settings), onOpenSettings)
                     }
                 }
             }
@@ -597,6 +604,10 @@ private fun NoteRow(
     // se recuerda por nota y versión.
     val preview = remember(note.id, note.updatedAt) { StrokeCodec.decodeNotebook(note.strokesJson).page(0) }
     val zone = ZoneId.systemDefault()
+    val stamp = rememberDateFormat(R.string.pattern_stamp)
+    val dayLabel = rememberDateFormat(R.string.pattern_date_short_year)
+    val noteOf = stringResource(R.string.notes_note_of)
+    val readOnlyLabel = stringResource(R.string.notes_drive_read_only)
 
     Row(
         Modifier
@@ -616,7 +627,7 @@ private fun NoteRow(
         }
         Column(Modifier.weight(1f).padding(start = 14.dp)) {
             Text(
-                text = note.title?.takeIf { it.isNotBlank() } ?: defaultTitle(note, zone),
+                text = note.title?.takeIf { it.isNotBlank() } ?: defaultTitle(note, zone, noteOf, stamp, dayLabel),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = Eink.Black,
@@ -625,9 +636,9 @@ private fun NoteRow(
             )
             Text(
                 text = buildString {
-                    append(Instant.ofEpochMilli(note.updatedAt).atZone(zone).format(stamp))
+                    append(Instant.ofEpochMilli(note.updatedAt).atZone(zone).format(stamp).replace(".", ""))
                     if (folderPath.isNotEmpty()) append(" · ").append(folderPath)
-                    if (note.isImported) append(" · Drive, solo lectura")
+                    if (note.isImported) append(" · ").append(readOnlyLabel)
                     else if (note.driveFileId != null) append(" · Drive")
                 },
                 style = MaterialTheme.typography.bodySmall,
@@ -660,30 +671,37 @@ private fun NoteRow(
             if (note.isImported) {
                 // Importada: se abre para leer y se etiqueta; lo demás es de la app que la creó.
                 Row {
-                    EinkIconButton(Glyph.Note, onOpen, contentDescription = "Abrir", accent = Accent.Note, box = 40.dp, size = 20.dp)
-                    EinkIconButton(Glyph.Tag, onTags, contentDescription = "Etiquetas", box = 40.dp, size = 20.dp)
+                    EinkIconButton(Glyph.Note, onOpen, contentDescription = stringResource(R.string.notes_open), accent = Accent.Note, box = 40.dp, size = 20.dp)
+                    EinkIconButton(Glyph.Tag, onTags, contentDescription = stringResource(R.string.notes_tags_action), box = 40.dp, size = 20.dp)
                 }
             } else {
                 Row {
-                    EinkIconButton(Glyph.Edit, onOpen, contentDescription = "Abrir", accent = Accent.Note, box = 40.dp, size = 20.dp)
-                    EinkIconButton(Glyph.Title, onRename, contentDescription = "Título", box = 40.dp, size = 20.dp)
+                    EinkIconButton(Glyph.Edit, onOpen, contentDescription = stringResource(R.string.notes_open), accent = Accent.Note, box = 40.dp, size = 20.dp)
+                    EinkIconButton(Glyph.Title, onRename, contentDescription = stringResource(R.string.common_title), box = 40.dp, size = 20.dp)
                 }
                 Row {
-                    EinkIconButton(Glyph.Folder, onMove, contentDescription = "Mover", box = 40.dp, size = 20.dp)
-                    EinkIconButton(Glyph.Tag, onTags, contentDescription = "Etiquetas", box = 40.dp, size = 20.dp)
-                    EinkIconButton(Glyph.Trash, onDelete, contentDescription = "Borrar", accent = Accent.Today, box = 40.dp, size = 20.dp)
+                    EinkIconButton(Glyph.Folder, onMove, contentDescription = stringResource(R.string.notes_move), box = 40.dp, size = 20.dp)
+                    EinkIconButton(Glyph.Tag, onTags, contentDescription = stringResource(R.string.notes_tags_action), box = 40.dp, size = 20.dp)
+                    EinkIconButton(Glyph.Trash, onDelete, contentDescription = stringResource(R.string.common_delete), accent = Accent.Today, box = 40.dp, size = 20.dp)
                 }
             }
         }
     }
 }
 
-private fun defaultTitle(note: InkNoteEntity, zone: ZoneId): String {
+/** [noteOf] is "Note of %s"; the date comes from the anchored day, or the creation time when there is none. */
+private fun defaultTitle(
+    note: InkNoteEntity,
+    zone: ZoneId,
+    noteOf: String,
+    stamp: DateTimeFormatter,
+    dayLabel: DateTimeFormatter,
+): String {
     val day = note.anchorDayMillis?.let { LocalDate.ofEpochDay(Math.floorDiv(it, MILLIS_PER_DAY)) }
     return if (day != null) {
-        "Nota del " + day.format(dayLabel).replace(".", "")
+        noteOf.format(day.format(dayLabel).replace(".", ""))
     } else {
-        "Nota del " + Instant.ofEpochMilli(note.createdAt).atZone(zone).format(stamp)
+        noteOf.format(Instant.ofEpochMilli(note.createdAt).atZone(zone).format(stamp).replace(".", ""))
     }
 }
 
@@ -734,7 +752,7 @@ private fun TextPrompt(
         if (hint != null) EinkHint(hint, Modifier.padding(top = 8.dp))
         Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Spacer(Modifier.weight(1f))
-            EinkButton("Cancelar", onDismiss)
+            EinkButton(stringResource(R.string.common_cancel), onDismiss)
             EinkButton(confirm, { onConfirm(value) }, enabled = allowBlank || value.isNotBlank(), emphasized = true)
         }
     }
@@ -752,7 +770,7 @@ private fun ConfirmPrompt(
         Text(text, style = MaterialTheme.typography.bodyLarge, color = Eink.Black)
         Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Spacer(Modifier.weight(1f))
-            EinkButton("Cancelar", onDismiss)
+            EinkButton(stringResource(R.string.common_cancel), onDismiss)
             EinkButton(confirm, onConfirm, emphasized = true)
         }
     }
@@ -783,13 +801,13 @@ private fun FolderPicker(
     }
     EinkDialog(onDismiss = onDismiss, title = title, modifier = Modifier.width(460.dp)) {
         Column(Modifier.verticalScroll(rememberScrollState())) {
-            PickerRow("Raíz", 0, selected = current == null) { onPick(null) }
+            PickerRow(stringResource(R.string.notes_root), 0, selected = current == null) { onPick(null) }
             rows.forEach { (folder, depth) ->
                 PickerRow(folder.name, depth + 1, selected = current == folder.id) { onPick(folder.id) }
             }
             Row(Modifier.fillMaxWidth().padding(top = 10.dp)) {
                 Spacer(Modifier.weight(1f))
-                EinkButton("Cancelar", onDismiss)
+                EinkButton(stringResource(R.string.common_cancel), onDismiss)
             }
         }
     }
@@ -833,9 +851,9 @@ private fun TagsPrompt(
         if (clean.isEmpty() || tags.any { it.equals(clean, ignoreCase = true) }) return
         tags = tags + clean
     }
-    EinkDialog(onDismiss = onDismiss, title = "Etiquetas", modifier = Modifier.width(460.dp)) {
+    EinkDialog(onDismiss = onDismiss, title = stringResource(R.string.notes_tags_action), modifier = Modifier.width(460.dp)) {
         if (tags.isEmpty()) {
-            EinkHint("Sin etiquetas. Toca una de abajo o escribe una nueva.")
+            EinkHint(stringResource(R.string.notes_no_tags_hint))
         } else {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 tags.forEach { tag ->
@@ -843,7 +861,7 @@ private fun TagsPrompt(
                 }
             }
             if (note.isImported) {
-                EinkHint("«importado» no se quita: la nota vino de otra app. Las demás etiquetas son solo de aquí.", Modifier.padding(top = 6.dp))
+                EinkHint(stringResource(R.string.notes_imported_tag_fixed), Modifier.padding(top = 6.dp))
             }
         }
         Row(
@@ -854,14 +872,14 @@ private fun TagsPrompt(
             EinkTextField(
                 value = draft,
                 onValueChange = { draft = it },
-                placeholder = "Etiqueta nueva",
+                placeholder = stringResource(R.string.notes_new_tag),
                 modifier = Modifier.weight(1f),
             )
-            EinkButton("Añadir", { add(draft); draft = "" }, enabled = draft.isNotBlank())
+            EinkButton(stringResource(R.string.common_add), { add(draft); draft = "" }, enabled = draft.isNotBlank())
         }
         val suggestions = known.filter { k -> tags.none { it.equals(k, ignoreCase = true) } }
         if (suggestions.isNotEmpty()) {
-            EinkHint("Ya en uso:", Modifier.padding(top = 12.dp, bottom = 6.dp))
+            EinkHint(stringResource(R.string.notes_tags_in_use), Modifier.padding(top = 12.dp, bottom = 6.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 suggestions.forEach { tag ->
                     Box(Modifier.einkClickable { add(tag) }) { TagChip(tag) }
@@ -870,8 +888,8 @@ private fun TagsPrompt(
         }
         Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Spacer(Modifier.weight(1f))
-            EinkButton("Cancelar", onDismiss)
-            EinkButton("Guardar", { onSave(tags) }, emphasized = true)
+            EinkButton(stringResource(R.string.common_cancel), onDismiss)
+            EinkButton(stringResource(R.string.common_save), { onSave(tags) }, emphasized = true)
         }
     }
 }

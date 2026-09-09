@@ -12,6 +12,8 @@ import com.weto.booxcal.ink.StrokeCodec
 import kotlinx.coroutines.runBlocking
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import com.weto.booxcal.util.AppLocale
+import com.weto.booxcal.util.DateFormats
 
 /** La lista de un widget: Android le pide las filas a la fábrica. */
 class AgendaWidgetService : RemoteViewsService() {
@@ -53,9 +55,10 @@ private class WidgetRowsFactory(
 
     override fun getViewAt(position: Int): RemoteViews = when (val row = rows.getOrNull(position)) {
         is WidgetRow.Day -> RemoteViews(context.packageName, R.layout.widget_row_day).apply {
-            val label = row.date.format(DAY_LABEL).replaceFirstChar { it.titlecase(Locale.getDefault()) }
-            setTextViewText(R.id.widget_day, if (row.isToday) "$label · hoy" else label)
-            setTextViewText(R.id.widget_day_note, if (row.empty) "libre" else "")
+            val locale = AppLocale.locale(context)
+            val label = row.date.format(DateFormats.of(context, R.string.pattern_weekday_day)).replaceFirstChar { it.titlecase(locale) }
+            setTextViewText(R.id.widget_day, if (row.isToday) label + context.getString(R.string.widget_day_today) else label)
+            setTextViewText(R.id.widget_day_note, if (row.empty) context.getString(R.string.widget_day_free) else "")
             // Hoy, en negativo, para verlo de un vistazo.
             setInt(R.id.widget_day_row, "setBackgroundColor", if (row.isToday) Color.BLACK else Color.WHITE)
             setTextColor(R.id.widget_day, if (row.isToday) Color.WHITE else Color.BLACK)
@@ -64,7 +67,7 @@ private class WidgetRowsFactory(
         }
 
         is WidgetRow.Section -> RemoteViews(context.packageName, R.layout.widget_row_section).apply {
-            setTextViewText(R.id.widget_section, row.title.uppercase(Locale.getDefault()))
+            setTextViewText(R.id.widget_section, row.title.uppercase(AppLocale.locale(context)))
         }
 
         is WidgetRow.Entry -> RemoteViews(context.packageName, R.layout.widget_row_entry).apply {
@@ -102,7 +105,6 @@ private class WidgetRowsFactory(
     override fun hasStableIds(): Boolean = false
 
     private companion object {
-        val DAY_LABEL: DateTimeFormatter = DateTimeFormatter.ofPattern("EEEE d", Locale.getDefault())
         const val THUMB_WIDTH_PX = 240
         const val THUMB_HEIGHT_PX = 180
     }

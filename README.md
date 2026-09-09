@@ -1,8 +1,12 @@
 # Boox Calendar
 
 Calendar, reminders and handwritten notes in a single app for **Onyx Boox**
-e-ink tablets, synchronised with your Google account. Designed and tested on
-the **Note Air 5C** (BooxOS 4.2, Android 13).
+e-ink tablets, synchronised with your Google account.
+
+It is designed for the **Onyx Boox Note Air 5C** and tested on it with the
+latest firmware available at the time of writing: **Android 15**, security
+patch **2026-06-01**. Other Boox tablets on Android 11 or later should work,
+but they are not tested.
 
 - **Calendar** from Google Calendar: month, week and day views; quick creation
   with a single "when" picker.
@@ -14,7 +18,13 @@ the **Note Air 5C** (BooxOS 4.2, Android 13).
 - **Notes in Google Drive** as editable PDF, in a folder owned by the app.
   **Import PDFs** from other apps (OneNote, scans), write over them and search
   their text.
+- **Page templates**: any PDF in the `noteTemplate` folder of the internal
+  storage becomes a template; each of its pages is one, offered when a new
+  note is created.
 - **Widgets**: today, week, agenda, notes of the day and search.
+- **English and Spanish.** The app follows the tablet's language (Spanish on
+  a tablet set to Spanish, English otherwise) and either can be pinned from
+  Settings.
 - Built for e-ink: black and white, no animations, minimal refreshes,
   everything on one screen.
 
@@ -34,6 +44,9 @@ Website: <https://wetoteca.duckdns.org/booxcalendar/> ·
    "Calendario Boox" in your Drive.
 5. Exclude the app from BooxOS power optimisation so it can sync in the
    background. The app itself reminds you.
+6. Optional, for page templates: create the folder `noteTemplate` in the
+   internal storage and drop PDF files in it. The first time you create a
+   note from a template the app asks for permission to read files.
 
 ### Google permissions it asks for, and why
 
@@ -43,6 +56,11 @@ Website: <https://wetoteca.duckdns.org/booxcalendar/> ·
 | Google Tasks | Reading and writing your reminders. |
 | Google Drive (app files only) | Storing your notes as PDF in the "Calendario Boox" folder. It cannot see the rest of your Drive. |
 | Account e-mail | Showing which account is connected. |
+
+On the tablet it also asks for file access ("All files access" on Android 11
+and later) the first time you open the template picker: that is the only way
+to read the `noteTemplate` folder, which lives outside the app. Nothing else
+is read from the storage.
 
 Data lives only on the tablet and in your Google account. There are no
 third-party servers, no analytics, no advertising. Details in the
@@ -103,10 +121,34 @@ data/
   repository/
   sync/      SyncEngine, SyncWorker, SyncScheduler, NoteDriveSync
   settings/  DataStore
-ink/         Onyx TouchHelper, stroke codec, PDF reader/writer, ML Kit
+ink/         Onyx TouchHelper, stroke codec, PDF reader/writer, ML Kit, templates
 widget/      Home-screen widgets
+util/        Dates, app language (AppLocale)
 di/          Graph: service locator
 ```
+
+### Languages
+
+Every user-visible string is a resource: `res/values/strings.xml` is English
+(the default) and `res/values-es/strings.xml` is Spanish. Date patterns are
+resources too, so the shape of a date follows the language. Text that is
+built off the main thread (sync results, widgets) goes through
+`Graph.appContext`; composables use `stringResource`.
+
+`util/AppLocale.kt` pins a language when the user chooses one in Settings:
+it wraps the base context of the `Application` and the `Activity`, and on
+Android 13+ also hands the choice to the system's per-app locale so widgets
+and system dialogs follow. With nothing pinned the app follows the device.
+
+### Page templates
+
+`ink/NoteTemplates.kt` lists the PDFs in `noteTemplate` (internal storage)
+and renders a page with Android's `PdfRenderer`, at the same width as an
+imported page, into the notes storage. The note keeps that image as its page
+background and remembers it (`InkNotebook.template`) so every page added to
+the note starts with it. Reading a folder outside the app needs the "all
+files" access on Android 11+ (`MANAGE_EXTERNAL_STORAGE`); the picker asks
+for it the first time.
 
 No Hilt. There are half a dozen dependencies, all application-scoped, and code
 generation would have added one more source of failures to a project that
@@ -332,7 +374,7 @@ invitations, attachments):
 | Risk | Status |
 |---|---|
 | **Onyx power manager** kills synchronisation | Mitigated with a notice on first run. There is no way to fix it from the app. |
-| **Onyx SDK versions** (`onyxsdk-pen:1.5.4.3`, `onyxsdk-device:1.3.5.2`) | Verified on the Note Air 5C. `RawInputCallback` has changed abstract methods between versions. |
+| **Onyx SDK versions** (`onyxsdk-pen:1.5.4.3`, `onyxsdk-device:1.3.5.2`) | Verified on the Note Air 5C (Android 15, patch 2026-06-01). `RawInputCallback` has changed abstract methods between versions. |
 | **Writing latency** without the SDK | The app detects the device and warns in Settings when it falls back to the touch path. |
 | **Google Tasks model**: date only, no time | Assumed in the data model and explained in the task editor. |
 | **OCR model download** needs network the first time | Explicit button in Settings. |

@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.weto.booxcal.R
+import androidx.annotation.StringRes
 
 /** Una carpeta tal y como se pinta en el árbol: con su profundidad y sus cuentas. */
 data class FolderNode(
@@ -291,14 +293,14 @@ class NotesManagerViewModel(
                 return@launch
             }
             select(folder?.parentId?.let { FolderScope.Folder(it) } ?: FolderScope.Root)
-            notify("Carpeta borrada; lo que tenía subió a la de encima")
+            notify(text(R.string.notes_msg_folder_deleted))
         }
     }
 
     fun moveFolder(id: Long, parentId: Long?) {
         viewModelScope.launch {
             if (!folders.move(id, parentId)) {
-                notify(if (folders.holdsImported(id)) IMPORTED_FOLDER else "Una carpeta no puede ir dentro de sí misma")
+                notify(if (folders.holdsImported(id)) IMPORTED_FOLDER else text(R.string.notes_msg_folder_into_itself))
             }
         }
     }
@@ -326,7 +328,7 @@ class NotesManagerViewModel(
 
     fun syncNow() {
         if (!state.value.driveConfigured) {
-            notify("Activa Google Drive para las notas en Ajustes")
+            notify(text(R.string.notes_msg_enable_drive))
             return
         }
         scheduler.syncNotesNow()
@@ -340,13 +342,13 @@ class NotesManagerViewModel(
     fun importPdfs(context: Context, uris: List<Uri>) {
         if (uris.isEmpty()) return
         if (!state.value.driveConfigured) {
-            notify("Activa Google Drive para las notas en Ajustes: los PDF importados se guardan ahí")
+            notify(text(R.string.notes_msg_enable_drive_import))
             return
         }
         val folderId = state.value.selectedFolderId
         val resolver = context.applicationContext.contentResolver
         if (filters.value.importProgress != null) {
-            notify("Ya hay una importación en marcha")
+            notify(text(R.string.notes_msg_import_running))
             return
         }
         viewModelScope.launch {
@@ -358,31 +360,31 @@ class NotesManagerViewModel(
                         importProgress = ImportProgress(name, index + 1, uris.size, label, fraction.coerceIn(0f, 1f)),
                     )
                 }
-                progress("PDF", "Leyendo el archivo…", 0f)
+                progress(text(R.string.notes_template_pdf), text(R.string.notes_msg_reading_file), 0f)
                 val (name, bytes) = withContext(Dispatchers.IO) {
                     runCatching {
                         val display = resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
                             if (c.moveToFirst()) c.getString(0) else null
                         }
                         val data = resolver.openInputStream(uri)?.use { it.readBytes() }
-                            ?: throw IllegalStateException("No se pudo leer el archivo")
-                        (display ?: "Importado.pdf") to data
+                            ?: throw IllegalStateException(text(R.string.notes_msg_cannot_read))
+                        (display ?: text(R.string.notes_msg_imported_default_name)) to data
                     }
                 }.getOrElse { e ->
-                    failure = e.message ?: "No se pudo leer el archivo"
+                    failure = e.message ?: text(R.string.notes_msg_cannot_read)
                     return@forEachIndexed
                 }
                 driveSync.importPdf(bytes, name, folderId) { label, fraction -> progress(name, label, fraction) }
                     .onSuccess { done++ }
-                    .onFailure { e -> failure = e.message ?: "No se pudo importar $name" }
+                    .onFailure { e -> failure = e.message ?: text(R.string.notes_msg_cannot_import_named, name) }
             }
             filters.value = filters.value.copy(importProgress = null)
             notify(
                 when {
-                    done == uris.size && done == 1 -> "PDF importado"
-                    done == uris.size -> "$done PDF importados"
-                    done == 0 -> "No se pudo importar: $failure"
-                    else -> "$done de ${uris.size} importados. Último fallo: $failure"
+                    done == uris.size && done == 1 -> text(R.string.notes_msg_pdf_imported)
+                    done == uris.size -> text(R.string.notes_msg_pdfs_imported, done)
+                    done == 0 -> text(R.string.notes_msg_import_failed, failure.orEmpty())
+                    else -> text(R.string.notes_msg_import_partial, done, uris.size, failure.orEmpty())
                 }
             )
         }
@@ -396,8 +398,11 @@ class NotesManagerViewModel(
         filters.value = filters.value.copy(message = null)
     }
 
+    private fun text(@StringRes id: Int, vararg args: Any): String = Graph.appContext.getString(id, *args)
+
+    private val IMPORTED_FOLDER: String get() = text(R.string.notes_msg_imported_folder)
+
     private companion object {
         val DATE_NAME = Regex("\\d{4}-\\d{2}-\\d{2}")
-        const val IMPORTED_FOLDER = "Esta carpeta tiene notas importadas: se cambia desde Google Drive"
     }
 }

@@ -33,9 +33,13 @@ import androidx.core.content.ContextCompat
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import androidx.compose.ui.res.stringResource
+import com.weto.booxcal.R
+import com.weto.booxcal.util.rememberDateFormat
+import com.weto.booxcal.util.rememberLocale
+import com.weto.booxcal.util.format
 
 private val clock: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-private val shortDate: DateTimeFormatter = DateTimeFormatter.ofPattern("EEE d MMM", Locale.getDefault())
 
 private class BatteryInfo(val percent: Int, val charging: Boolean) {
     companion object {
@@ -104,8 +108,7 @@ fun EinkStatusStrip(modifier: Modifier = Modifier) {
             color = Eink.Black,
         )
         Text(
-            text = now.format(shortDate).replace(".", "")
-                .replaceFirstChar { it.titlecase(Locale.getDefault()) },
+            text = now.toLocalDate().format(rememberDateFormat(R.string.pattern_date_short), capitalize = true, locale = rememberLocale()),
             style = MaterialTheme.typography.labelMedium,
             color = Eink.Graphite,
             modifier = Modifier.padding(start = 10.dp),
@@ -114,7 +117,7 @@ fun EinkStatusStrip(modifier: Modifier = Modifier) {
         battery?.let { info ->
             if (info.charging) {
                 Text(
-                    text = "Cargando",
+                    text = stringResource(R.string.status_charging),
                     style = MaterialTheme.typography.labelMedium,
                     color = Eink.Graphite,
                     modifier = Modifier.padding(end = 8.dp),
