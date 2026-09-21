@@ -289,9 +289,10 @@ than on any other screen: every jump costs a full refresh.
   entries' titles: at that size a title does not fit, and a dot already says
   the only thing you need at a glance.
 - **Items of the day** (`ui/home/EventsCard.kt`): the selected day's events,
-  reminders due that day and notes, grouped, five rows per page with an `n/m`
-  indicator. Paging is not decorative: scrolling a list on e-ink is a
-  continuous refresh that leaves ghosts; turning a page repaints once.
+  reminders due that day and notes, grouped. When they do not fit, the list
+  scrolls and the rows share a height chosen so that the last visible one is
+  cut in half: that half row is what says there is more, without arrows or a
+  counter taking space.
 - **Tabbed module** (`ui/home/ModuleCard.kt`): the day's handwritten note,
   reminders, notes of the day, and what is overdue or due today. The completed
   section folds, with its count.

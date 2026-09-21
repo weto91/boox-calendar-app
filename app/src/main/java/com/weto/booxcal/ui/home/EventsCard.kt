@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
@@ -14,20 +15,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.weto.booxcal.data.local.dao.EventWithCalendar
 import com.weto.booxcal.data.local.dao.TaskWithList
@@ -37,10 +38,8 @@ import com.weto.booxcal.ui.ink.InkPreview
 import com.weto.booxcal.ui.theme.Eink
 import com.weto.booxcal.ui.theme.EinkCardHeader
 import com.weto.booxcal.ui.theme.EinkDivider
-import com.weto.booxcal.ui.theme.EinkGlyph
 import com.weto.booxcal.ui.theme.EinkPalette
 import com.weto.booxcal.ui.theme.EinkRadioCheck
-import com.weto.booxcal.ui.theme.Glyph
 import com.weto.booxcal.ui.theme.HairlineWidth
 import com.weto.booxcal.ui.theme.einkClickable
 import com.weto.booxcal.util.resolveDateTime
@@ -55,9 +54,6 @@ import com.weto.booxcal.util.rememberDateFormat
 import com.weto.booxcal.util.rememberLocale
 
 private val clock: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")
-
-/** Filas por página. Los rótulos de grupo cuentan como fila: son más bajos, pero ocupan. */
-private const val PAGE_SIZE = 5
 
 /** Una fila de la tarjeta: rótulo de grupo o elemento. */
 private sealed class DayItem {
@@ -109,9 +105,6 @@ fun ColumnScope.DayItemsCard(
         }
     }
     val total = events.size + tasks.size + notes.size
-    val pageCount = if (items.isEmpty()) 1 else (items.size + PAGE_SIZE - 1) / PAGE_SIZE
-    var page by remember(date, items.size) { mutableIntStateOf(0) }
-    val current = page.coerceIn(0, pageCount - 1)
 
     EinkCardHeader(
         title = stringResource(R.string.day_items_title, date.format(rememberDateFormat(R.string.pattern_day_month)).replace(".", "")),
@@ -146,63 +139,68 @@ fun ColumnScope.DayItemsCard(
                 }
             }
         } else {
-            val slice = items.drop(current * PAGE_SIZE).take(PAGE_SIZE)
-            slice.forEachIndexed { index, item ->
-                when (item) {
-                    is DayItem.Header -> GroupLabel(item.title, item.count)
-                    is DayItem.Event -> EventRow(item.row, zone) { onOpenEvent(item.row.event.id) }
-                    is DayItem.Task -> TaskRow(
-                        row = item.row,
-                        onToggle = { onToggleTask(item.row.task.id, it) },
-                        onClick = { onOpenTask(item.row.task.id) },
-                    )
-                    is DayItem.Note -> NoteRow(item.note, zone) { onOpenNote(item.note) }
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                // Everything fits: each row at its own height, no scroll.
+                // Otherwise the rows share one height chosen so that the last
+                // visible one is cut in half: that half row is what says,
+                // without arrows or a counter, that there is more below.
+                val natural = items.sumOf { it.naturalHeight.value.toDouble() }.dp
+                val rowHeight: Dp? = if (natural <= maxHeight) {
+                    null
+                } else {
+                    val fullRows = ((maxHeight - TARGET_ROW_HEIGHT / 2) / TARGET_ROW_HEIGHT).toInt().coerceAtLeast(1)
+                    maxHeight / (fullRows + 0.5f)
                 }
-                val next = slice.getOrNull(index + 1)
-                // Sin raya antes de un rótulo: el rótulo ya separa.
-                if (next != null && next !is DayItem.Header && item !is DayItem.Header) {
-                    EinkDivider(Modifier.padding(start = 14.dp, end = 14.dp))
+                LazyColumn(Modifier.fillMaxSize()) {
+                    itemsIndexed(items, key = { _, item -> item.key }) { index, item ->
+                        val rowModifier = if (rowHeight != null) Modifier.height(rowHeight) else Modifier
+                        when (item) {
+                            is DayItem.Header -> GroupLabel(item.title, item.count, rowModifier)
+                            is DayItem.Event -> EventRow(item.row, zone, rowModifier) { onOpenEvent(item.row.event.id) }
+                            is DayItem.Task -> TaskRow(
+                                row = item.row,
+                                modifier = rowModifier,
+                                onToggle = { onToggleTask(item.row.task.id, it) },
+                                onClick = { onOpenTask(item.row.task.id) },
+                            )
+                            is DayItem.Note -> NoteRow(item.note, zone, rowModifier) { onOpenNote(item.note) }
+                        }
+                        val next = items.getOrNull(index + 1)
+                        // No line before a label: the label already separates.
+                        if (next != null && next !is DayItem.Header && item !is DayItem.Header) {
+                            EinkDivider(Modifier.padding(start = 14.dp, end = 14.dp))
+                        }
+                    }
                 }
             }
         }
     }
-
-    if (pageCount > 1) {
-        EinkDivider(color = Eink.Border)
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .padding(vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            PagerArrow(Glyph.ChevronLeft, enabled = current > 0) { page = current - 1 }
-            Text(
-                text = "${current + 1}/$pageCount",
-                style = MaterialTheme.typography.labelMedium,
-                color = Eink.Graphite,
-                modifier = Modifier.padding(horizontal = 14.dp),
-            )
-            PagerArrow(Glyph.ChevronRight, enabled = current < pageCount - 1) { page = current + 1 }
-        }
-    } else {
-        Row(
-            Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            horizontalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                text = "1/1",
-                style = MaterialTheme.typography.labelMedium,
-                color = Eink.Slate,
-            )
-        }
-    }
 }
 
+/** A row's height when it is not being squeezed: what its content takes. */
+private val DayItem.naturalHeight: Dp
+    get() = when (this) {
+        is DayItem.Header -> 28.dp
+        is DayItem.Event -> 52.dp
+        is DayItem.Task -> 46.dp
+        is DayItem.Note -> 50.dp
+    }
+
+private val DayItem.key: String
+    get() = when (this) {
+        is DayItem.Header -> "h-$title"
+        is DayItem.Event -> "e-${row.event.id}"
+        is DayItem.Task -> "t-${row.task.id}"
+        is DayItem.Note -> "n-${note.id}"
+    }
+
+/** The row height the squeeze aims for; the real one is what makes the last visible row a half. */
+private val TARGET_ROW_HEIGHT = 48.dp
+
 @Composable
-private fun GroupLabel(title: String, count: Int) {
+private fun GroupLabel(title: String, count: Int, modifier: Modifier = Modifier) {
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .padding(horizontal = 14.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -223,26 +221,12 @@ private fun GroupLabel(title: String, count: Int) {
 }
 
 @Composable
-private fun PagerArrow(glyph: Glyph, enabled: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .height(32.dp)
-            .width(40.dp)
-            .clip(RoundedCornerShape(6.dp))
-            .einkClickable(enabled = enabled, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        EinkGlyph(glyph, size = 18.dp, tint = if (enabled) Eink.Black else Eink.Slate)
-    }
-}
-
-@Composable
-private fun EventRow(row: EventWithCalendar, zone: ZoneId, onClick: () -> Unit) {
+private fun EventRow(row: EventWithCalendar, zone: ZoneId, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val event = row.event
     val accent = EinkPalette.forArgb(row.accentArgb)
 
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .einkClickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 8.dp),
@@ -299,12 +283,12 @@ private fun EventRow(row: EventWithCalendar, zone: ZoneId, onClick: () -> Unit) 
 
 /** Un recordatorio del día: su marca para completarlo, el título y la lista. */
 @Composable
-private fun TaskRow(row: TaskWithList, onToggle: (Boolean) -> Unit, onClick: () -> Unit) {
+private fun TaskRow(row: TaskWithList, modifier: Modifier = Modifier, onToggle: (Boolean) -> Unit, onClick: () -> Unit) {
     val task = row.task
     val completed = task.completedAt != null
 
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .einkClickable(onClick = onClick)
             .padding(start = 6.dp, end = 14.dp, top = 2.dp, bottom = 2.dp),
@@ -342,7 +326,7 @@ private fun TaskRow(row: TaskWithList, onToggle: (Boolean) -> Unit, onClick: () 
 
 /** Una nota del día: miniatura, título (o primera línea transcrita, o la hora) y hora. */
 @Composable
-private fun NoteRow(note: InkNoteEntity, zone: ZoneId, onClick: () -> Unit) {
+private fun NoteRow(note: InkNoteEntity, zone: ZoneId, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val document = remember(note.id, note.updatedAt) { StrokeCodec.decode(note.strokesJson) }
     val time = Instant.ofEpochMilli(note.updatedAt).atZone(zone).toLocalTime().format(clock)
     val title = note.title?.takeIf { it.isNotBlank() }
@@ -350,7 +334,7 @@ private fun NoteRow(note: InkNoteEntity, zone: ZoneId, onClick: () -> Unit) {
         ?: stringResource(R.string.note_at_time, time)
 
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .einkClickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 6.dp),
