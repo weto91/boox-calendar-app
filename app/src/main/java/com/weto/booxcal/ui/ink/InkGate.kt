@@ -23,6 +23,14 @@ object InkGate {
 
     val blocked: Boolean get() = overlays > 0
 
+    /**
+     * Whether a canvas that lives at [ownerDepth] (how many overlays were
+     * open when it was created) is covered by an overlay opened after it.
+     * The handwriting sheet inside the creation window is at depth 1: the
+     * window blocks the quick note below (depth 0), not the sheet itself.
+     */
+    fun blocks(ownerDepth: Int): Boolean = overlays > ownerDepth
+
     internal fun enter() { overlays++ }
     internal fun leave() { overlays = (overlays - 1).coerceAtLeast(0) }
 }

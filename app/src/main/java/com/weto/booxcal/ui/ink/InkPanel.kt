@@ -597,6 +597,10 @@ fun InkSurface(
         else -> PenMode.AUTO
     }
     val tools = state.tools
+    // How many floating windows were open when this canvas appeared: the
+    // ones opened later cover it; the one it lives in does not.
+    val ownerDepth = remember { InkGate.overlays }
+    val penAllowed = !InkGate.blocks(ownerDepth) && !readOnly
 
     Column(modifier.fillMaxWidth()) {
         // El menú del lazo aparece encima del lienzo solo cuando hay algo
@@ -618,7 +622,7 @@ fun InkSurface(
                     onDocumentChanged = { state.onCanvasChanged() }
                     onDiagnostics = { state.diagnostics = it }
                     onSelectionChanged = { state.selectionCount = it }
-                    setPenEnabled(!InkGate.blocked && !readOnly)
+                    setPenEnabled(penAllowed)
                     state.controller.view = this
                 }
             },
@@ -642,7 +646,7 @@ fun InkSurface(
                 // Con una ventana flotante encima (crear evento o recordatorio)
                 // el lápiz espera: si no, el trazo rápido se comía los toques
                 // sobre sus botones y los pintaba en la nota.
-                canvas.setPenEnabled(!InkGate.blocked && !readOnly)
+                canvas.setPenEnabled(penAllowed)
                 // Ampliar para leer: solo cuando el lápiz no pinta.
                 canvas.zoomEnabled = true
             },
@@ -900,6 +904,11 @@ fun InkToolbar(
      * o un recordatorio con su texto) y el paso de páginas.
      */
     readOnly: Boolean = false,
+    /**
+     * Only pen, eraser and lasso: the handwriting sheet of an event or
+     * reminder, which is narrow and needs nothing else.
+     */
+    minimal: Boolean = false,
 ) {
     var options by remember { mutableStateOf(false) }
     // Which destructive action is waiting for a yes: a new sheet with
@@ -962,6 +971,7 @@ fun InkToolbar(
             size = glyph,
             box = box,
         )
+        if (!minimal) {
         if (!readOnly) EinkIconButton(
             glyph = Glyph.Undo,
             onClick = { state.controller.undo(); state.revision++ },
@@ -1020,7 +1030,8 @@ fun InkToolbar(
             )
         }
 
-        if (showPages) {
+        }
+        if (showPages && !minimal) {
             EinkIconButton(
                 glyph = Glyph.ChevronLeft,
                 onClick = { state.goToPage(state.page - 1) },
@@ -1132,6 +1143,8 @@ fun InkBoard(
     onCreateEntry: ((isEvent: Boolean, text: String, ink: InkDocument?) -> Unit)? = null,
     readOnly: Boolean = false,
     initialPage: Int = 0,
+    /** Only pen, eraser and lasso in the toolbar. */
+    minimalTools: Boolean = false,
 ) {
     val state = rememberInkBoardState(notebook, key, onNotebookChanged, initialPage)
     state.onText = { target, text, _, ink ->
@@ -1143,7 +1156,7 @@ fun InkBoard(
     }
 
     Column(modifier.fillMaxWidth()) {
-        InkToolbar(state, showPages = showPages, readOnly = readOnly, modifier = Modifier.fillMaxWidth())
+        InkToolbar(state, showPages = showPages, readOnly = readOnly, minimal = minimalTools, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(4.dp))
         InkSurface(
             state = state,
@@ -1203,6 +1216,7 @@ fun InkCaptureSheet(
             languageTag = languageTag,
             modifier = Modifier.weight(1f).padding(top = 6.dp),
             showPages = false,
+            minimalTools = true,
             onNotebookChanged = { notebook = it },
             onUseText = { acceptedText = it },
         )

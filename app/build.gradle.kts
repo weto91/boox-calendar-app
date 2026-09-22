@@ -61,8 +61,8 @@ android {
         minSdk = libs.versions.minSdk.get().toInt()
         targetSdk = libs.versions.targetSdk.get().toInt()
         // Sube versionCode en cada release publicada (ver docs/RELEASE.md).
-        versionCode = 3
-        versionName = "1.2.0"
+        versionCode = 5
+        versionName = "1.2.2"
 
         buildConfigField("String", "OAUTH_CLIENT_ID", "\"$oauthClientId\"")
         buildConfigField("String", "OAUTH_REDIRECT_SCHEME", "\"$oauthRedirectScheme\"")

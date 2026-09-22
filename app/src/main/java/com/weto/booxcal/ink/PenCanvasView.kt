@@ -1097,7 +1097,19 @@ class PenCanvasView @JvmOverloads constructor(
         // sin fin.
         if (penEnabled == enabled) return
         penEnabled = enabled
-        if (enabled) resumeRawDelayed() else pauseRaw()
+        // Not just paused: the SDK's raw input reader is one per process.
+        // With this canvas paused but still mounted, a second canvas opened
+        // on top (the handwriting sheet of a new event) mounted its own
+        // helper, and closing that one shut the reader for this one too:
+        // back on the quick note the pen fell to the slow touch path for
+        // good. So a blocked canvas gives its helper up and mounts a fresh
+        // one when it is allowed to draw again.
+        if (enabled) {
+            post { setupTouchHelper() }
+        } else {
+            closeHelper()
+            flushSdkInk()
+        }
     }
 
     fun release() {
@@ -1242,6 +1254,8 @@ class PenCanvasView @JvmOverloads constructor(
     private fun setupTouchHelper() {
         if (width <= 0 || height <= 0) return
         if (penMode == PenMode.TOUCH) return
+        // Blocked by a window on top: no helper until it is allowed again.
+        if (!penEnabled) return
 
         // En coordenadas de la vista, no de pantalla: es lo que hace el demo
         // oficial (`getLocalVisibleRect`). Con coordenadas de pantalla la región
