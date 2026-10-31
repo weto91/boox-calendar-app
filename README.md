@@ -1,6 +1,6 @@
 # Boox Calendar
 
-![boox-calendar image](boox-calendar-ss.png)
+![boox-calendar image](img/boox-calendar-ss.png)
 Calendar, reminders and handwritten notes in a single app for **Onyx Boox**
 e-ink tablets, synchronised with your Google account.
 

@@ -282,6 +282,20 @@ class PenCanvasView @JvmOverloads constructor(
     /** El último trazo lo puso el camino táctil y aún podría ser un duplicado. */
     private var lastStrokeFromTouch = false
 
+    /**
+     * Whole strokes the touch path drew while the SDK was asked to capture
+     * the pen and had never answered. In a healthy state this stays at zero:
+     * a capturing SDK keeps the pen away from Android. Reset when the SDK
+     * proves itself or is remounted.
+     */
+    private var silentStrokes = 0
+
+    /** Remounts of a silent SDK since the pen was last enabled or the SDK last answered. */
+    private var remounts = 0
+
+    /** `release()` was called: the view is on its way out and mounts nothing more. */
+    private var released = false
+
     /** La goma del botón del lápiz está pulsada en este gesto. */
     private var erasingByButton = false
 
@@ -739,6 +753,14 @@ class PenCanvasView @JvmOverloads constructor(
         //    dibujo es otra (sus trazos se cruzan). El margen va con la
         //    altura de cada trazo, no con la mediana de la nota: así la letra
         //    grande y la pequeña se agrupan cada una a su escala.
+        //
+        //    Dos trazos solo se juntan si se escribieron casi seguidos y
+        //    comparten banda: con las líneas apretadas, el rabo de una «p» de
+        //    arriba tocaba el asta de una «d» de abajo y la «d» se iba a la
+        //    palabra de arriba («efectivamente, d» … «texto sigue sien»). Las
+        //    letras de una palabra son trazos consecutivos que comparten la
+        //    banda de la x; un punto, un acento o la barra de la t son trazos
+        //    pequeños que se añaden al momento, y a esos no se les pide banda.
         val parent = IntArray(boxes.size) { it }
         fun find(a: Int): Int {
             var x = a
@@ -754,22 +776,47 @@ class PenCanvasView @JvmOverloads constructor(
         }
         for (i in boxes.indices) {
             for (j in i + 1 until boxes.size) {
-                if (RectF.intersects(reach[i], reach[j])) {
-                    val ri = find(i)
-                    val rj = find(j)
-                    if (ri != rj) parent[ri] = rj
-                }
+                if (abs(boxes[i].first - boxes[j].first) > STROKE_NEIGHBOURHOOD) continue
+                if (!RectF.intersects(reach[i], reach[j])) continue
+                val a = boxes[i].second
+                val b = boxes[j].second
+                val shorter = min(a.height(), b.height())
+                val smallMark = shorter < median * SMALL_MARK_FRACTION
+                val shared = min(a.bottom, b.bottom) - max(a.top, b.top)
+                if (!smallMark && shared < shorter * CORE_OVERLAP_MIN) continue
+                val ri = find(i)
+                val rj = find(j)
+                if (ri != rj) parent[ri] = rj
             }
         }
-        class Blob(val strokeIndices: List<Int>, val boxes: List<RectF>, val bounds: RectF) {
+        /**
+         * [line] es la altura a la que está escrita la mancha: la mediana de
+         * las alturas de sus puntos. Casi toda la tinta de una palabra va en
+         * la banda de la x, así que las astas y los rabos apenas la mueven:
+         * «prueba» y «una» dan la misma línea. [core] es el cuerpo de la
+         * letra: el recorrido del medio de esos puntos (del cuarto al tres
+         * cuartos), que viene a ser la altura de la x.
+         */
+        class Blob(
+            val strokeIndices: List<Int>,
+            val boxes: List<RectF>,
+            val bounds: RectF,
+            val line: Float,
+            val core: Float,
+        ) {
             val n: Int get() = strokeIndices.size
             val h: Float get() = bounds.height().coerceAtLeast(1f)
             val w: Float get() = bounds.width()
+            /** Cuándo se escribió: el orden del primero de sus trazos. */
+            val start: Int get() = strokeIndices.min()
         }
         val blobs = boxes.indices.groupBy { find(it) }.values.map { members ->
             val bounds = RectF(boxes[members.first()].second)
             members.forEach { bounds.union(boxes[it].second) }
-            Blob(members.map { boxes[it].first }, members.map { boxes[it].second }, bounds)
+            val ys = members.flatMap { m -> strokes[boxes[m].first].points.map { it.y } }.sorted()
+            val line = ys[ys.size / 2]
+            val core = (ys[ys.size * 3 / 4] - ys[ys.size / 4]).coerceAtLeast(median * 0.5f)
+            Blob(members.map { boxes[it].first }, members.map { boxes[it].second }, bounds, line, core)
         }
 
         // 2. Qué mancha es dibujo. Por forma, no por tamaño de letra:
@@ -802,22 +849,41 @@ class PenCanvasView @JvmOverloads constructor(
         }
         val textBlobs = blobs
             .filterNot { guessDrawings && isDrawing(it) }
-            .sortedBy { it.bounds.centerY() }
+            .sortedBy { it.start }
 
-        // 3. Renglones de manchas de texto: se alinean por el centro y con
-        //    altura parecida, así la letra grande y la pequeña van a
-        //    renglones distintos y cada uno se convierte a su tamaño.
+        // 3. Renglones, en el orden en que se escribieron. Los trazos se
+        //    guardan según se trazan, y se escribe de izquierda a derecha y de
+        //    arriba abajo: el orden de escritura ES el orden de lectura, y no
+        //    depende de lo recto que salga el renglón ni de si una palabra
+        //    tiene astas o rabos. Cada palabra (por su primer trazo) continúa
+        //    el renglón que se está escribiendo si queda a la derecha de la
+        //    palabra anterior y a su altura (ver [Blob.line]); si no, es que
+        //    se ha vuelto atrás: si hay un renglón a esa altura, se mete en
+        //    él (una palabra añadida después); si no, empieza uno nuevo (la
+        //    línea siguiente). Las alturas se comparan siempre entre vecinas,
+        //    nunca con medias ni uniones de cajas: con eso una línea algo
+        //    inclinada se partía en trozos que se mezclaban con la de abajo.
         class Row(val members: MutableList<Blob>) {
-            val center: Float get() = members.map { it.bounds.centerY() }.average().toFloat()
+            val last: Blob get() = members.last()
             val height: Float get() = members.map { it.h }.average().toFloat()
         }
+        fun sameLine(a: Blob, b: Blob): Boolean = abs(a.line - b.line) <= ROW_JOIN_FRACTION * max(a.core, b.core)
         val rows = mutableListOf<Row>()
         textBlobs.forEach { blob ->
-            val row = rows.lastOrNull()
-            val fits = row != null &&
-                abs(blob.bounds.centerY() - row.center) <= row.height * ROW_JOIN_FRACTION &&
-                minOf(blob.h, row.height) / maxOf(blob.h, row.height) >= ROW_HEIGHT_SIMILARITY
-            if (fits) row!!.members += blob else rows += Row(mutableListOf(blob))
+            val current = rows.lastOrNull()
+            val follows = current != null &&
+                blob.bounds.left >= current.last.bounds.right - ROW_BACKTRACK_FRACTION * max(current.last.core, blob.core) &&
+                sameLine(current.last, blob)
+            if (follows) {
+                current!!.members += blob
+                return@forEach
+            }
+            val revisited = rows
+                .map { row -> row to row.members.minBy { horizontalGap(it.bounds, blob.bounds) } }
+                .filter { (_, nearest) -> sameLine(nearest, blob) }
+                .minByOrNull { (_, nearest) -> abs(nearest.line - blob.line) }
+                ?.first
+            if (revisited != null) revisited.members += blob else rows += Row(mutableListOf(blob))
         }
 
         // 4. Dentro del renglón, un hueco de varias letras parte el texto
@@ -922,6 +988,9 @@ class PenCanvasView @JvmOverloads constructor(
         repaintUnderSdk()
         onDocumentChanged?.invoke()
     }
+
+    /** Distancia horizontal entre dos cajas; cero si se solapan. */
+    private fun horizontalGap(a: RectF, b: RectF): Float = max(0f, max(a.left, b.left) - min(a.right, b.right))
 
     private fun strokeBounds(stroke: Stroke): RectF? {
         if (stroke.points.isEmpty()) return null
@@ -1105,6 +1174,8 @@ class PenCanvasView @JvmOverloads constructor(
         // good. So a blocked canvas gives its helper up and mounts a fresh
         // one when it is allowed to draw again.
         if (enabled) {
+            silentStrokes = 0
+            remounts = 0
             post { setupTouchHelper() }
         } else {
             closeHelper()
@@ -1113,6 +1184,7 @@ class PenCanvasView @JvmOverloads constructor(
     }
 
     fun release() {
+        released = true
         closeHelper()
         background?.recycle()
         background = null
@@ -1198,7 +1270,15 @@ class PenCanvasView @JvmOverloads constructor(
     private var appliedRect: Rect? = null
 
     private fun syncLimitRect() {
-        if (touchHelper == null) return
+        if (touchHelper == null) {
+            // A mount that found the view without size or off screen gave up
+            // quietly, and nothing came back for it: the pen stayed on the
+            // slow touch path. Every layout is a new chance. A mount that
+            // failed outright is not retried on each layout; the watchdog
+            // after a touch stroke has that.
+            if (diagnostics.error == null) setupTouchHelper()
+            return
+        }
         val rect = screenRect()
         if (rect.isEmpty || rect == appliedRect) return
         setupTouchHelper()
@@ -1252,6 +1332,7 @@ class PenCanvasView @JvmOverloads constructor(
      * TAG para poder seguirlo con `adb logcat -s PenCanvasView`.
      */
     private fun setupTouchHelper() {
+        if (released) return
         if (width <= 0 || height <= 0) return
         if (penMode == PenMode.TOUCH) return
         // Blocked by a window on top: no helper until it is allowed again.
@@ -1326,6 +1407,7 @@ class PenCanvasView @JvmOverloads constructor(
         }
 
         appliedRect = screenRect()
+        if (touchHelper != null) mounted += this
         diagnostics = diagnostics.copy(
             helperCreated = touchHelper != null,
             limitRect = limit.shortString(),
@@ -1334,6 +1416,55 @@ class PenCanvasView @JvmOverloads constructor(
         Log.i(TAG, "Trazo: ${diagnostics.engine}")
         report()
         onEngineResolved?.invoke(touchHelper != null)
+    }
+
+    /**
+     * Closes the helper and mounts a fresh one.
+     *
+     * It is what cured the pen falling to the touch path for good when a
+     * second canvas had come and gone: the SDK's pen state and input reader
+     * are shared by the whole process, and a helper left behind by a sibling's
+     * close does not come back by being enabled again.
+     */
+    private fun remountHelper(reason: String) {
+        if (released || touchHelper == null || !penEnabled) return
+        Log.w(TAG, "SDK: remounting ($reason)")
+        // Whatever was written meanwhile went through the touch path for
+        // real; none of it is a duplicate for the first SDK delivery to drop.
+        lastStrokeFromTouch = false
+        closeHelper(remount = true)
+        setupTouchHelper()
+    }
+
+    /**
+     * A whole stroke just went through the slow touch path (the dotted trail
+     * that catches up with the pen). That is expected while the SDK is paused
+     * on purpose: the eraser or the lasso, the half second after a repaint,
+     * a window without focus. It is not expected when the SDK is meant to be
+     * capturing and has never delivered anything: then it is mounted but
+     * deaf, and it stays so until remounted. Two such strokes in a row and
+     * it is remounted, a few times at most, so a device where the SDK simply
+     * does not work is not remounted after every stroke.
+     */
+    private fun afterTouchStroke() {
+        if (released || penMode == PenMode.TOUCH || !rawWanted) return
+        if (touchHelper == null) {
+            if (diagnostics.error == null) setupTouchHelper()
+            return
+        }
+        if (diagnostics.sdkProven) return
+        if (!rawActive) {
+            // Paused with nothing on its way back: that is a pause that got
+            // lost (a resume asked for while the window had no focus, say).
+            if (!resumeScheduled) resumeRawDelayed()
+            return
+        }
+        silentStrokes++
+        if (silentStrokes < SILENT_STROKES_BEFORE_REMOUNT) return
+        silentStrokes = 0
+        if (remounts >= MAX_REMOUNTS) return
+        remounts++
+        remountHelper("silent after $SILENT_STROKES_BEFORE_REMOUNT touch strokes, $remounts/$MAX_REMOUNTS")
     }
 
     /**
@@ -1408,11 +1539,21 @@ class PenCanvasView @JvmOverloads constructor(
     /** Estilo del SDK para la punta y sus ajustes (ver [SdkInk.styleFor]). */
     private fun currentStrokeStyle(): Int = SdkInk.styleFor(tool, pencilTexture, pressureSensitivity)
 
-    private fun closeHelper() {
+    /**
+     * Closes the helper. Unless this is a [remount], every other canvas with
+     * a helper of its own is remounted next: closing a helper takes the
+     * process-wide pen state down with it, and a sibling that keeps its old
+     * helper is left capturing nothing (the pen then writes through the
+     * touch path, slowly). It happens when two screens overlap during a
+     * navigation transition and the one leaving closes after the one arriving
+     * has mounted.
+     */
+    private fun closeHelper(remount: Boolean = false) {
         removeCallbacks(resumeRunnable)
         resumeScheduled = false
         resumeAfterTouch = false
         touchStrokeActive = false
+        val hadHelper = touchHelper != null
         runCatching {
             touchHelper?.setRawDrawingEnabled(false)
             touchHelper?.closeRawDrawing()
@@ -1420,8 +1561,14 @@ class PenCanvasView @JvmOverloads constructor(
         touchHelper = null
         rawActive = false
         appliedRect = null
+        mounted -= this
         diagnostics = diagnostics.copy(helperCreated = false, sdkProven = false)
         onEngineResolved?.invoke(false)
+        if (hadHelper && !remount) {
+            mounted.toList().forEach { sibling ->
+                sibling.post { sibling.remountHelper("a sibling canvas closed its helper") }
+            }
+        }
     }
 
     private fun screenRect(): Rect {
@@ -1520,6 +1667,8 @@ class PenCanvasView @JvmOverloads constructor(
      */
     private fun proveSdk() {
         if (diagnostics.sdkProven) return
+        silentStrokes = 0
+        remounts = 0
         if (lastStrokeFromTouch && strokes.isNotEmpty()) {
             strokes.removeAt(strokes.lastIndex)
             // Y su entrada en el historial, que se grabó al guardarlo.
@@ -1713,9 +1862,11 @@ class PenCanvasView @JvmOverloads constructor(
                         EinkRefresh.readableMode(this)
                     }
                 }
+                val drew = activeTool != PenTool.ERASER && activeTool != PenTool.LASSO
                 erasingByButton = false
                 report()
                 resumeIfDeferred()
+                if (drew) afterTouchStroke()
             }
 
             else -> return super.onTouchEvent(event)
@@ -2003,6 +2154,15 @@ class PenCanvasView @JvmOverloads constructor(
     companion object {
         private const val TAG = "PenCanvasView"
         private const val ERASER_RADIUS_PX = 22f
+
+        /** The canvases of the process that hold an open helper right now. */
+        private val mounted = mutableSetOf<PenCanvasView>()
+
+        /** Whole touch strokes under a capturing, never-answering SDK before it is remounted. */
+        private const val SILENT_STROKES_BEFORE_REMOUNT = 2
+
+        /** Remounts of a silent SDK before giving up on it (until the pen is enabled again). */
+        private const val MAX_REMOUNTS = 3
         /** Recorrido del cono de grosor de los trazos de antes de los milímetros. */
         const val BASE_WIDTH_MIN = StrokeRenderer.BASE_WIDTH_MIN
         const val BASE_WIDTH_MAX = StrokeRenderer.BASE_WIDTH_MAX
@@ -2050,14 +2210,20 @@ class PenCanvasView @JvmOverloads constructor(
         private const val MIN_TEXT_UNIT_PX = 14f
         /** Cuánto "alcanza" un trazo a su alrededor, en fracción de su alto. */
         private const val BLOB_MARGIN = 0.35f
+        /** Dos trazos forman palabra solo si se escribieron a menos de tantos trazos de distancia. */
+        private const val STROKE_NEIGHBOURHOOD = 8
+        /** Un trazo más bajo que esta parte de la mediana es un punto, un acento o una barra: se une sin más. */
+        private const val SMALL_MARK_FRACTION = 0.6f
+        /** Dos letras comparten banda si sus cajas se solapan en vertical al menos esta parte de la más baja. */
+        private const val CORE_OVERLAP_MIN = 0.25f
         /** Una mancha más alta que tantas letras (mediana) y no muy ancha es una figura. */
         private const val BIG_FIGURE_UNITS = 4f
         /** Un trazo o dos de más de tantas letras de ancho es una raya suelta. */
         private const val LONE_LINE_UNITS = 8f
-        /** Una mancha entra en un renglón si su centro cae a menos de esto del suyo (fracción del alto). */
-        private const val ROW_JOIN_FRACTION = 0.6f
-        /** ...y su alto se parece al del renglón al menos así. */
-        private const val ROW_HEIGHT_SIMILARITY = 0.45f
+        /** Dos palabras están a la misma altura si sus líneas distan menos de esta parte del cuerpo. */
+        private const val ROW_JOIN_FRACTION = 1f
+        /** ...y empieza, como mucho, esta parte del cuerpo antes de donde acabó la anterior (un rabo que invade). */
+        private const val ROW_BACKTRACK_FRACTION = 0.5f
         /** Un hueco de tantos altos de renglón separa columnas. */
         private const val COLUMN_GAP_FRACTION = 2.5f
         /** Un trazo encerrado cuenta como anidado si mide al menos esto del que lo encierra. */

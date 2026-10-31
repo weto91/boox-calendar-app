@@ -108,28 +108,40 @@ class InkRecognizer {
     }
 
     /**
-     * Los tiempos van estrictamente crecientes dentro de cada trazo. Los
-     * puntos que entrega el SDK de Onyx llegan todos de golpe, con el mismo
-     * instante, y a ML Kit le vale, pero no hay por qué fiarse de eso.
+     * One clock for the whole ink, in the order the strokes are given.
+     *
+     * Each stroke stores its times from its own start, so handed over as is
+     * every stroke began at zero and they all overlapped in time. The
+     * recogniser is trained on real writing and leans on the chronology to
+     * order the words; with it gone it guessed its own order and a tall word
+     * in the middle of a line ("prueba") came out at the end. Here the strokes
+     * are laid one after another, with a pause between them, in the order
+     * the caller built (left to right along the line), and the times stay
+     * strictly increasing inside each stroke as well.
      */
     private fun InkDocument.toMlKitInk(): Ink {
         val builder = Ink.builder()
+        var clock = 0L
         strokes.forEach { stroke ->
             if (stroke.points.isEmpty()) return@forEach
             val strokeBuilder = Ink.Stroke.builder()
-            var last = Long.MIN_VALUE
+            val base = clock
+            var last = base - 1
             stroke.points.forEach { point ->
-                val t = if (point.t > last) point.t else last + 1
+                val t = maxOf(base + point.t.coerceAtLeast(0), last + 1)
                 last = t
                 strokeBuilder.addPoint(Ink.Point.create(point.x, point.y, t))
             }
             builder.addStroke(strokeBuilder.build())
+            clock = last + STROKE_GAP_MS
         }
         return builder.build()
     }
 
     companion object {
         private const val TAG = "InkRecognizer"
+        /** Pause between two strokes on the shared clock: about a pen lift. */
+        private const val STROKE_GAP_MS = 80L
     }
 }
 
